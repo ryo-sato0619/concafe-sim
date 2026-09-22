@@ -79,7 +79,9 @@ namespace Concafe.Tests
 
                 var shift = new Shift();
                 for (int i = 0; i < castCount; i++)
-                    foreach (int d in pattern[i % pattern.Length]) shift.Set("c" + i, d, true);
+                    foreach (int d in pattern[i % pattern.Length])
+                        shift.Set("c" + i, d,
+                            new ShiftSlot(balance.Business.OpenHour(d), balance.Business.CloseHour));
 
                 var r = GameFlow.RunWeek(s, shift);
 
@@ -130,22 +132,78 @@ namespace Concafe.Tests
         };
 
         [Test]
-        public void 来客数が設計書_4_1_の式どおり()
+        public void 平日の来客数が設計書_4_1_の式どおり()
         {
-            // 設計書 14.8 は「キャスト 3 人・各パラメータ 20 で 18 人/日」としている。
-            // これは全員が毎日出勤した場合の数であり、来客の式自体は正しい。
-            var m = Measure(3, EveryDay);
-            Assert.AreEqual(18.0, m.VisitorsPerDay, 0.1,
-                "来客の式が設計書 4.1 から外れている");
+            // 設計書 14.8 の「キャスト 3 人・各パラメータ 20 で 18 人/日」は
+            // 平日（17〜23 時の 6 時間）に全員がフル出勤した場合の数である。
+            // 営業時間とシフトを時刻で持つようにしても、ここは変わらない。
+            var s = new GameState(balance, eggs, 777);
+            s.Shop.CashYen = 1_000_000_000;
+
+            for (int i = 0; i < 3; i++)
+            {
+                var c = new Cast { Id = "c" + i, StageName = "c" + i, Age = 22, StaminaTier = 5 };
+                c.Current = Stats.Uniform(20);
+                c.Cap = Stats.Uniform(20);
+                c.GrowthRate = Stats.Uniform(0);
+                s.Shop.Roster.Add(c);
+            }
+
+            GameFlow.BeginWeek(s);
+            for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
+            ManagerActions.Order(s, StockKey.SoftDrink, 400);
+            ManagerActions.Order(s, StockKey.Alcohol, 400);
+            ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+
+            var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
+
+            for (int d = 0; d < Shift.DaysPerWeek; d++)
+            {
+                var day = r.Days[d];
+                TestContext.WriteLine(
+                    $"曜日{d} {(day.IsHoliday ? "休" : "平")} {day.OpenHours}時間 来客{day.Visitors}");
+
+                if (day.IsHoliday) continue;
+                Assert.AreEqual(18, day.Visitors,
+                    $"平日（曜日 {d}）の来客が設計書 4.1 から外れている");
+            }
         }
 
         [Test]
-        public void 客単価が四千円前後()
+        public void 休日は営業時間が長いぶん客が増える()
         {
-            // チャージ制（滞在 1 時間あたり チャージ 1,200 ＋ ドリンク約 1,000）に
+            var s = new GameState(balance, eggs, 777);
+            s.Shop.CashYen = 1_000_000_000;
+
+            var c0 = new Cast { Id = "c0", StageName = "c0", Age = 22, StaminaTier = 5 };
+            c0.Current = Stats.Uniform(20);
+            c0.Cap = Stats.Uniform(20);
+            c0.GrowthRate = Stats.Uniform(0);
+            s.Shop.Roster.Add(c0);
+
+            GameFlow.BeginWeek(s);
+            for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
+            ManagerActions.Order(s, StockKey.SoftDrink, 400);
+            ManagerActions.Order(s, StockKey.Alcohol, 400);
+            ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+
+            var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
+
+            int weekday = r.Days[0].Visitors;   // 月曜
+            int holiday = r.Days[5].Visitors;   // 土曜
+
+            Assert.Greater(holiday, weekday, "休日のほうが客が少ない");
+            Assert.AreEqual(8, r.Days[5].OpenHours);
+            Assert.AreEqual(6, r.Days[0].OpenHours);
+        }
+
+        [Test]
+        public void 客単価が約三千八百円()
+        {
+            // チャージ制（滞在 1 時間あたり チャージ 1,100 ＋ 客のドリンク 900 = 2,000）に
             // したことで、1 杯だけだった頃の 1,930 円から倍増した。
             var m = Measure(3, EveryDay);
-            Assert.That(m.AverageSpendYen, Is.EqualTo(3990).Within(200),
+            Assert.That(m.AverageSpendYen, Is.EqualTo(3790).Within(200),
                 "客単価が動いた。チャージ・滞在時間・商品価格・注文率のどれかを " +
                 "変えたなら設計書 14.8 も直すこと");
         }
@@ -153,13 +211,13 @@ namespace Concafe.Tests
         [Test]
         public void 序盤から黒字になっている_U17_要再調整()
         {
-            // チャージ制の導入で、赤字 40,601 円/週 が黒字 約198,000 円/週 に反転した。
+            // チャージ制の導入で、赤字 40,601 円/週 が黒字 約192,000 円/週 に反転した。
             // 「赤字寸前のコンカフェ」からは大きく外れているため、
             // U-17 でどの係数を締めるかを決める必要がある。
             var m = Measure(3, EveryDay);
 
             Assert.Greater(m.ProfitYen, 0L);
-            Assert.That(m.ProfitYen, Is.EqualTo(198_000).Within(20_000),
+            Assert.That(m.ProfitYen, Is.EqualTo(192_000).Within(20_000),
                 "収支が動いた。U-17 で締めたなら、この期待値と設計書 14.8 を更新すること");
         }
 
@@ -171,7 +229,7 @@ namespace Concafe.Tests
 
             Assert.Less(four.ProfitYen, seven.ProfitYen,
                 "出勤を減らすと固定費を売上で割れなくなる");
-            Assert.That(four.ProfitYen, Is.EqualTo(72_000).Within(15_000));
+            Assert.That(four.ProfitYen, Is.EqualTo(67_000).Within(15_000));
         }
 
         [Test]
@@ -219,7 +277,7 @@ namespace Concafe.Tests
                     for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
                         ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 20);
 
-                    var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 7));
+                    var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
                     rev += r.RevenueYen;
                     visits += r.TotalVisitors;
                     c.Fatigue = 0;

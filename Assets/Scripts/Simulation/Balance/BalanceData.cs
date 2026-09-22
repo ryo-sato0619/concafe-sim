@@ -21,6 +21,7 @@ namespace Concafe.Simulation.Balance
         public VisitorBalance Visitors { get; internal set; }
         public IReadOnlyDictionary<string, WeatherBalance> Weather { get; internal set; }
         public WeatherGenBalance WeatherGen { get; internal set; }
+        public BusinessBalance Business { get; internal set; }
         public VisitBalance Visit { get; internal set; }
         public OrderBalance Orders { get; internal set; }
         public ItemBalance Items { get; internal set; }
@@ -127,6 +128,69 @@ namespace Concafe.Simulation.Balance
     }
 
     /// <summary>
+    /// 営業時間。
+    ///
+    /// 平日 17:00〜23:00（6 時間）、休日 15:00〜23:00（8 時間）。
+    /// 休日のほうが 2 時間長いため来客も多く、**休日は稼ぎ時になる。**
+    /// シフトをどの曜日に置くかが判断になる。
+    ///
+    /// 22 時以降は深夜割増の対象。23 時閉店なので毎日 1 時間分が割増になる。
+    /// </summary>
+    public sealed class BusinessBalance
+    {
+        public int WeekdayOpenHour { get; internal set; }
+        public int HolidayOpenHour { get; internal set; }
+        public int CloseHour { get; internal set; }
+
+        /// <summary>この時刻以降が深夜割増の対象。</summary>
+        public int LateNightFromHour { get; internal set; }
+        public double LateNightMultiplier { get; internal set; }
+
+        /// <summary>1 回のシフトの最短時間。</summary>
+        public int MinShiftHours { get; internal set; }
+
+        /// <summary>休日の曜日番号。0 = 月曜、6 = 日曜。</summary>
+        public IReadOnlyList<int> HolidayDays { get; internal set; }
+
+        public bool IsHoliday(int dayOfWeek)
+        {
+            foreach (int d in HolidayDays) if (d == dayOfWeek) return true;
+            return false;
+        }
+
+        public int OpenHour(int dayOfWeek) =>
+            IsHoliday(dayOfWeek) ? HolidayOpenHour : WeekdayOpenHour;
+
+        public int OpenHours(int dayOfWeek) => CloseHour - OpenHour(dayOfWeek);
+
+        /// <summary>基準となる営業時間。来客係数はこの長さで校正されている。</summary>
+        public int BaselineOpenHours => CloseHour - WeekdayOpenHour;
+
+        /// <summary>
+        /// 時刻 start〜end のうち、深夜割増の対象になる時間数。
+        /// </summary>
+        public int LateNightHoursIn(int startHour, int endHour)
+        {
+            int from = startHour > LateNightFromHour ? startHour : LateNightFromHour;
+            int to = endHour;
+            return to > from ? to - from : 0;
+        }
+
+        /// <summary>
+        /// 給料の計算に使う「割増込みの時間数」。
+        /// 深夜帯に掛かった分だけ倍率が乗る。
+        /// </summary>
+        public double PaidHours(int startHour, int endHour)
+        {
+            int total = endHour - startHour;
+            if (total <= 0) return 0;
+
+            int late = LateNightHoursIn(startHour, endHour);
+            return (total - late) + late * LateNightMultiplier;
+        }
+    }
+
+    /// <summary>
     /// 来店とチャージ。
     ///
     /// 売上の土台は「滞在 1 時間あたり チャージ ＋ 客のドリンク 1 杯」で、
@@ -137,7 +201,14 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public sealed class VisitBalance
     {
+        /// <summary>チャージ。原価ゼロで全額が粗利になる。</summary>
         public long ChargePerHourYen { get; internal set; }
+
+        /// <summary>
+        /// 客が自分で飲む 1 杯の売価。ソフトドリンクでもアルコールでも同額で、
+        /// 原価だけが品目ごとに違う。キャストへのバックは付かない（不変条件 25）。
+        /// </summary>
+        public long GuestDrinkPriceYen { get; internal set; }
         public int MaxStayHours { get; internal set; }
 
         /// <summary>トーク 0 のときの延長確率。</summary>
@@ -158,12 +229,17 @@ namespace Concafe.Simulation.Balance
     public sealed class ItemPrice
     {
         public long CostYen { get; internal set; }
+        /// <summary>直接の売価。ソフトドリンクとアルコールは 0（用途で売価が決まる）。</summary>
         public long PriceYen { get; internal set; }
+
+        public bool HasOwnPrice => PriceYen > 0;
     }
 
     public sealed class ItemBalance
     {
+        /// <summary>原価のみ。売価は客のドリンク 900 かキャストドリンク 1,600。</summary>
         public ItemPrice SoftDrink { get; internal set; }
+        /// <summary>原価のみ。</summary>
         public ItemPrice Alcohol { get; internal set; }
         public ItemPrice ChekiFilm { get; internal set; }
         public ItemPrice Limited { get; internal set; }
@@ -188,11 +264,23 @@ namespace Concafe.Simulation.Balance
         public IReadOnlyList<BottleTierBalance> NonAlcoholic { get; internal set; }
     }
 
+    /// <summary>
+    /// 給料。時給 ＋ バック。
+    ///
+    /// バックの対象はチェキ・キャストドリンク・ボトルだけで、
+    /// チャージと客のドリンクは店の売上として扱う。
+    /// この切り分けがあるため、トークを伸ばすとバック対象の比率が上がり、
+    /// **エースの人件費が売上に連動して跳ね上がる**。
+    /// </summary>
     public sealed class WageBalance
     {
-        public long DailyBaseYen { get; internal set; }
-        public long DailyStatCoefYen { get; internal set; }
-        public double CommissionRate { get; internal set; }
+        public long BaseHourlyYen { get; internal set; }
+        /// <summary>能力平均 1 あたりの時給上昇。</summary>
+        public double HourlyStatCoefYen { get; internal set; }
+        /// <summary>勤続 1 年あたりの時給上昇。</summary>
+        public long SeniorityPerYearYen { get; internal set; }
+
+        public double BackRate { get; internal set; }
     }
 
     public sealed class FatigueBalance

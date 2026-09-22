@@ -62,7 +62,7 @@ namespace Concafe.Tests
                 OrderForWeek(s);
                 SpendAp(s);
 
-                var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 5));
+                var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 5, balance));
 
                 if (s.Shop.CashYen < summary.MinCashYen) summary.MinCashYen = s.Shop.CashYen;
                 if (summary.FirstProfitableWeek < 0 && r.ProfitYen > 0)

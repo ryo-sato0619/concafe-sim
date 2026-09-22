@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 4;
+        public const int SupportedSchemaVersion = 7;
 
         public static BalanceData Load(string json)
         {
@@ -137,10 +137,34 @@ namespace Concafe.Simulation.Balance
                                            "weatherGen.forecastAccuracy", problems),
             };
 
+            var biz = Section(root, "business", problems);
+            var holidays = new List<int>();
+            foreach (var v in biz["holidayDays"].Items())
+            {
+                double day = v.AsDouble(-1);
+                if (day != Math.Floor(day) || day < 0 || day >= 7)
+                {
+                    problems.Add($"business.holidayDays に曜日でない値がある: {day}");
+                    continue;
+                }
+                holidays.Add((int)day);
+            }
+            d.Business = new BusinessBalance
+            {
+                WeekdayOpenHour = Int(biz, "business.weekdayOpenHour", problems, "weekdayOpenHour"),
+                HolidayOpenHour = Int(biz, "business.holidayOpenHour", problems, "holidayOpenHour"),
+                CloseHour = Int(biz, "business.closeHour", problems, "closeHour"),
+                LateNightFromHour = Int(biz, "business.lateNightFromHour", problems, "lateNightFromHour"),
+                LateNightMultiplier = Num(biz, "business.lateNightMultiplier", problems, "lateNightMultiplier"),
+                MinShiftHours = Int(biz, "business.minShiftHours", problems, "minShiftHours"),
+                HolidayDays = holidays,
+            };
+
             var visit = Section(root, "visit", problems);
             d.Visit = new VisitBalance
             {
                 ChargePerHourYen = Yen(visit, "visit.chargePerHourYen", problems, "chargePerHourYen"),
+                GuestDrinkPriceYen = Yen(visit, "visit.guestDrinkPriceYen", problems, "guestDrinkPriceYen"),
                 MaxStayHours = Int(visit, "visit.maxStayHours", problems, "maxStayHours"),
                 ExtendBase = Num(visit, "visit.extendBase", problems, "extendBase"),
                 ExtendTalk = Num(visit, "visit.extendTalk", problems, "extendTalk"),
@@ -159,10 +183,10 @@ namespace Concafe.Simulation.Balance
             var items = Section(root, "items", problems);
             d.Items = new ItemBalance
             {
-                SoftDrink = ReadItem(items, "items.softDrink", problems, "softDrink"),
-                Alcohol = ReadItem(items, "items.alcohol", problems, "alcohol"),
-                ChekiFilm = ReadItem(items, "items.chekiFilm", problems, "chekiFilm"),
-                Limited = ReadItem(items, "items.limited", problems, "limited"),
+                SoftDrink = ReadItem(items, "items.softDrink", problems, "softDrink", false),
+                Alcohol = ReadItem(items, "items.alcohol", problems, "alcohol", false),
+                ChekiFilm = ReadItem(items, "items.chekiFilm", problems, "chekiFilm", true),
+                Limited = ReadItem(items, "items.limited", problems, "limited", true),
             };
 
             d.CastDrinkPriceYen = Yen(Section(root, "castDrink", problems),
@@ -180,9 +204,10 @@ namespace Concafe.Simulation.Balance
             var wage = Section(root, "wage", problems);
             d.Wage = new WageBalance
             {
-                DailyBaseYen = Yen(wage, "wage.dailyBaseYen", problems, "dailyBaseYen"),
-                DailyStatCoefYen = Yen(wage, "wage.dailyStatCoefYen", problems, "dailyStatCoefYen"),
-                CommissionRate = Num(wage, "wage.commissionRate", problems, "commissionRate"),
+                BaseHourlyYen = Yen(wage, "wage.baseHourlyYen", problems, "baseHourlyYen"),
+                HourlyStatCoefYen = Num(wage, "wage.hourlyStatCoefYen", problems, "hourlyStatCoefYen"),
+                SeniorityPerYearYen = Yen(wage, "wage.seniorityPerYearYen", problems, "seniorityPerYearYen"),
+                BackRate = Num(wage, "wage.backRate", problems, "backRate"),
             };
 
             var fat = Section(root, "fatigue", problems);
@@ -274,15 +299,27 @@ namespace Concafe.Simulation.Balance
             return d;
         }
 
-        static ItemPrice ReadItem(JsonValue parent, string path, List<string> problems, string key)
+        /// <summary>
+        /// priceYen を持たない品目もある（ソフトドリンク・アルコール）。
+        /// 売価は用途で決まるため、原価だけを持つ。
+        /// </summary>
+        static ItemPrice ReadItem(JsonValue parent, string path, List<string> problems,
+                                  string key, bool requirePrice)
         {
             var node = parent[key];
             if (node.IsNull) problems.Add($"{path} が無い");
-            return new ItemPrice
+
+            var item = new ItemPrice
             {
                 CostYen = Yen(node, path + ".costYen", problems, "costYen"),
-                PriceYen = Yen(node, path + ".priceYen", problems, "priceYen"),
             };
+
+            if (requirePrice)
+                item.PriceYen = Yen(node, path + ".priceYen", problems, "priceYen");
+            else if (node.Has("priceYen"))
+                problems.Add($"{path}.priceYen がある。この品目の売価は用途で決まるので持たせない");
+
+            return item;
         }
 
         static IReadOnlyList<BottleTierBalance> ReadBottleTiers(
@@ -412,6 +449,26 @@ namespace Concafe.Simulation.Balance
                 }
             }
 
+            // 営業時間
+            var biz2 = d.Business;
+            if (biz2.CloseHour <= biz2.WeekdayOpenHour)
+                problems.Add("business.closeHour が平日の開店時刻以下");
+            if (biz2.CloseHour <= biz2.HolidayOpenHour)
+                problems.Add("business.closeHour が休日の開店時刻以下");
+            if (biz2.HolidayOpenHour > biz2.WeekdayOpenHour)
+                problems.Add("business.holidayOpenHour が平日より遅い。休日のほうが短くなる");
+            if (biz2.LateNightFromHour >= biz2.CloseHour)
+                problems.Add("business.lateNightFromHour が閉店時刻以降。深夜手当が発生しない");
+            if (biz2.LateNightMultiplier < 1.0)
+                problems.Add("business.lateNightMultiplier が 1 未満。深夜手当が減給になる");
+            if (biz2.MinShiftHours <= 0) problems.Add("business.minShiftHours が 0 以下");
+            if (biz2.MinShiftHours > biz2.BaselineOpenHours)
+                problems.Add("business.minShiftHours が平日の営業時間を超えている。平日にシフトを組めない");
+            if (biz2.HolidayDays.Count == 0)
+                problems.Add("business.holidayDays が空。休日が無いと営業時間の差が出ない");
+            if (biz2.HolidayDays.Count >= 7)
+                problems.Add("business.holidayDays が全曜日。平日が無い");
+
             // 来店とチャージ
             if (d.Visit.ChargePerHourYen < 0) problems.Add("visit.chargePerHourYen が負");
             if (d.Visit.MaxStayHours < 1) problems.Add("visit.maxStayHours が 1 未満");
@@ -430,11 +487,20 @@ namespace Concafe.Simulation.Balance
             if (d.Orders.TalkSpan < 0) problems.Add("orders.talkSpan が負");
 
             // 商品
-            Margin(d.Items.SoftDrink, "items.softDrink", problems);
-            Margin(d.Items.Alcohol, "items.alcohol", problems);
+            if (d.Items.SoftDrink.CostYen < 0) problems.Add("items.softDrink.costYen が負");
+            if (d.Items.Alcohol.CostYen < 0) problems.Add("items.alcohol.costYen が負");
             Margin(d.Items.ChekiFilm, "items.chekiFilm", problems);
             Margin(d.Items.Limited, "items.limited", problems);
+
             if (d.CastDrinkPriceYen <= 0) problems.Add("castDrink.priceYen が 0 以下");
+            if (d.CastDrinkPriceYen <= d.Items.Alcohol.CostYen)
+                problems.Add("castDrink.priceYen が原価以下。売るほど赤字になる");
+
+            // 客のドリンクは一律の売価で、原価だけが品目ごとに違う。
+            if (d.Visit.GuestDrinkPriceYen <= d.Items.Alcohol.CostYen)
+                problems.Add("visit.guestDrinkPriceYen がアルコールの原価以下。売るほど赤字になる");
+            if (d.Visit.GuestDrinkPriceYen <= d.Items.SoftDrink.CostYen)
+                problems.Add("visit.guestDrinkPriceYen がソフトドリンクの原価以下");
 
             // ボトル
             ValidateBottles(d.Bottles.Alcoholic, "bottles.alcoholic", true, problems);
@@ -447,9 +513,10 @@ namespace Concafe.Simulation.Balance
                 problems.Add("bottles.tierPowerAlcoholWeight が 0 以下。20 歳の覚醒が起きなくなる（不変条件 4）");
 
             // 給料
-            if (d.Wage.DailyBaseYen < 0) problems.Add("wage.dailyBaseYen が負");
-            if (d.Wage.DailyStatCoefYen < 0) problems.Add("wage.dailyStatCoefYen が負");
-            Rate(d.Wage.CommissionRate, "wage.commissionRate", problems);
+            if (d.Wage.BaseHourlyYen <= 0) problems.Add("wage.baseHourlyYen が 0 以下");
+            if (d.Wage.HourlyStatCoefYen < 0) problems.Add("wage.hourlyStatCoefYen が負");
+            if (d.Wage.SeniorityPerYearYen < 0) problems.Add("wage.seniorityPerYearYen が負");
+            Rate(d.Wage.BackRate, "wage.backRate", problems);
 
             // 疲労
             if (d.Fatigue.Base < 0) problems.Add("fatigue.base が負");

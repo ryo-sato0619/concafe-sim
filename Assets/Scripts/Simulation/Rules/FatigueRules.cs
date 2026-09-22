@@ -81,12 +81,19 @@ namespace Concafe.Simulation.Rules
         /// <summary>
         /// 出勤による自然成長。トークと知名度だけが伸びる（設計書 14.4）。
         ///
+        /// 出勤時間に比例させる。長く入れば売上も経験も増えるが、疲労も増える。
+        /// 基準は平日の全営業時間で、フル出勤なら dailyWorkGain のままになる。
+        ///
         /// 集客が接客では伸びないのは意図的である。固定客を増やす手段を特訓に限ることで、
         /// 店長 AP を割く価値が保たれる。
         /// </summary>
-        public static void ApplyWorkDay(Cast cast, BalanceData balance)
+        public static void ApplyWorkDay(Cast cast, int shiftHours, BalanceData balance)
         {
-            double g = balance.Manager.DailyWorkGain;
+            if (shiftHours <= 0) return;
+
+            double g = balance.Manager.DailyWorkGain
+                     * shiftHours / balance.Business.BaselineOpenHours;
+
             Apply(cast, StatKind.Talk, g);
             Apply(cast, StatKind.Fame, g);
         }

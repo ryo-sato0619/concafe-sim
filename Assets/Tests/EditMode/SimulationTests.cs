@@ -91,7 +91,7 @@ namespace Concafe.Tests
         {
             GameFlow.BeginWeek(s);
             ForceWeather(s, weather);
-            return GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, workDays));
+            return GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, workDays, balance));
         }
 
         // ---- T-01 / T-21: 未成年と酒 ----------------------------------------
@@ -129,23 +129,71 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void T02_未成年の担当客はアルコール在庫を消費しない()
+        public void T02_未成年のキャストドリンクはソフトドリンクに変換される()
         {
             var s = NewState();
-            s.Shop.Roster.Add(MakeCast("c1", "未成年", 19, talk: 100));
+            var minor = MakeCast("c1", "未成年", 19, regulars: 100, fame: 0, talk: 100);
+            s.Shop.Roster.Add(minor);
+            // ソフトドリンクだけを置く。キャストドリンクが出れば必ずここから減る。
             s.Shop.Stock.Add(StockKey.SoftDrink, 100000);
+            s.Shop.CashYen = 100_000_000;
+
+            int before = s.Shop.Stock[StockKey.SoftDrink];
+            var r = RunOneWeek(s, Weather.Sunny);
+
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
+            // 客のドリンク（接客時間ぶん）より多く減っていれば、
+            // キャストドリンクがソフトドリンクとして出ている。
+            Assert.Greater(before - s.Shop.Stock[StockKey.SoftDrink], guestHours,
+                "未成年のキャストドリンクがソフトドリンクに変換されていない");
+            Assert.AreEqual(0, r.CastStats[0].AlcoholDrinksServed,
+                "未成年が酒を飲んでいる（不変条件 3）");
+        }
+
+        [Test]
+        public void T02b_客のドリンクはキャストの年齢に関係しない()
+        {
+            // 企画書の年齢制限はキャストドリンクとボトルが対象で、
+            // 客が自分で飲むドリンクは対象外である。
+            // ここを縛ると、未成年中心のシフトでソフトドリンクを切らすだけで
+            // 売上が止まってしまう。
+            var s = NewState();
+            s.Shop.Roster.Add(MakeCast("c1", "未成年", 19, regulars: 100, fame: 0, talk: 0));
+            // アルコールだけを置く。
             s.Shop.Stock.Add(StockKey.Alcohol, 100000);
             s.Shop.CashYen = 100_000_000;
 
-            int alcoholBefore = s.Shop.Stock[StockKey.Alcohol];
-            int softBefore = s.Shop.Stock[StockKey.SoftDrink];
+            int before = s.Shop.Stock[StockKey.Alcohol];
+            var r = RunOneWeek(s, Weather.Sunny);
 
-            RunOneWeek(s, Weather.Sunny);
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
 
-            Assert.AreEqual(alcoholBefore, s.Shop.Stock[StockKey.Alcohol],
-                "未成年にアルコールを出している（不変条件 3）");
-            Assert.Less(s.Shop.Stock[StockKey.SoftDrink], softBefore,
-                "ソフトドリンクに変換されていない");
+            Assert.AreEqual(guestHours, before - s.Shop.Stock[StockKey.Alcohol],
+                "未成年の担当客にアルコールが出ていない");
+            Assert.AreEqual(0, r.CastStats[0].AlcoholDrinksServed,
+                "キャスト自身は飲んでいないこと");
+        }
+
+        [Test]
+        public void T02c_ドリンクはどちらかの在庫があれば出せる()
+        {
+            long Revenue(bool soft, bool alcohol)
+            {
+                var s = NewState(seed: 8);
+                s.Shop.Roster.Add(MakeCast("c1", "テスト", 19, regulars: 100, fame: 0, talk: 0));
+                if (soft) s.Shop.Stock.Add(StockKey.SoftDrink, 100000);
+                if (alcohol) s.Shop.Stock.Add(StockKey.Alcohol, 100000);
+                s.Shop.CashYen = 100_000_000;
+                return RunOneWeek(s, Weather.Sunny).RevenueYen;
+            }
+
+            long onlyCharge = Revenue(false, false);
+
+            Assert.Greater(Revenue(true, false), onlyCharge, "ソフトドリンクだけでも出せる");
+            Assert.Greater(Revenue(false, true), onlyCharge, "アルコールだけでも出せる");
         }
 
         [Test]
@@ -323,7 +371,7 @@ namespace Concafe.Tests
                 GameFlow.BeginWeek(s);
                 ForceWeather(s, w);
                 var shift = new Shift();
-                shift.Set("c1", 0, true);   // 1 日だけ出勤
+                shift.Set("c1", 0, new ShiftSlot(17, 23));   // 月曜だけフル出勤
                 var r = GameFlow.RunWeek(s, shift);
                 return r.CastStats[0].FatigueGained;
             }
@@ -512,7 +560,7 @@ namespace Concafe.Tests
 
                 // ケアを挟んで信頼度を積む。それでも限界値は動かない。
                 ManagerActions.Care(s, c);
-                GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 3));
+                GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 3, balance));
 
                 if (s.Shop.Roster.Count == 0) break;
 
@@ -626,6 +674,180 @@ namespace Concafe.Tests
             Assert.LessOrEqual(guestHours, r.TotalVisitors * balance.Visit.MaxStayHours);
         }
 
+        // ---- シフトの時間帯 --------------------------------------------------
+
+        [Test]
+        public void 短いシフトは客も売上も少ない()
+        {
+            long Revenue(int startHour)
+            {
+                var s = NewState(seed: 9001);
+                s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 40));
+                FillStock(s.Shop);
+                s.Shop.CashYen = 100_000_000;
+
+                GameFlow.BeginWeek(s);
+                ForceWeather(s, Weather.Sunny);
+
+                var shift = new Shift();
+                shift.Set("c1", 0, new ShiftSlot(startHour, balance.Business.CloseHour));
+                return GameFlow.RunWeek(s, shift).RevenueYen;
+            }
+
+            long full = Revenue(17);   // 6 時間
+            long half = Revenue(20);   // 3 時間
+
+            Assert.Greater(full, 0L);
+            Assert.Less(half, full, "短く入れても売上が変わっていない");
+        }
+
+        [Test]
+        public void 深夜帯に掛かると給料に割増が付く()
+        {
+            var c = MakeCast("c1", "テスト", 30, regulars: 0, fame: 0, talk: 0);
+            long hourly = WageRules.HourlyYen(c, balance, 0);
+
+            // 17〜21 時（4 時間、深夜なし）
+            long early = WageRules.DailyYen(c, new ShiftSlot(17, 21), balance, 0);
+            Assert.AreEqual(hourly * 4, early);
+
+            // 19〜23 時（4 時間、うち 22〜23 時が深夜）
+            long late = WageRules.DailyYen(c, new ShiftSlot(19, 23), balance, 0);
+            Assert.AreEqual(
+                (long)System.Math.Round(hourly * (3 + 1 * balance.Business.LateNightMultiplier)),
+                late);
+
+            Assert.Greater(late, early, "同じ 4 時間でも深夜帯を含むほうが高くならない");
+        }
+
+        [Test]
+        public void 休日のフル出勤は平日より給料が高い()
+        {
+            var c = MakeCast("c1", "テスト", 30, regulars: 0, fame: 0, talk: 0);
+            var b = balance.Business;
+
+            long weekday = WageRules.DailyYen(c, new ShiftSlot(b.OpenHour(0), b.CloseHour), balance, 0);
+            long holiday = WageRules.DailyYen(c, new ShiftSlot(b.OpenHour(5), b.CloseHour), balance, 0);
+
+            Assert.Greater(holiday, weekday, "休日は 2 時間長いので日給も高い");
+        }
+
+        [Test]
+        public void 勤続一年ごとに時給が百円上がる()
+        {
+            var c = MakeCast("c1", "テスト", 30, regulars: 0, fame: 0, talk: 0);
+            c.HiredWeek = 0;
+
+            long y0 = WageRules.HourlyYen(c, balance, 0);
+            long y1 = WageRules.HourlyYen(c, balance, balance.Time.WeeksPerYear);
+            long y5 = WageRules.HourlyYen(c, balance, balance.Time.WeeksPerYear * 5);
+
+            Assert.AreEqual(y0 + balance.Wage.SeniorityPerYearYen, y1);
+            Assert.AreEqual(y0 + balance.Wage.SeniorityPerYearYen * 5, y5);
+
+            // 年の途中では上がらない。
+            Assert.AreEqual(y0, WageRules.HourlyYen(c, balance, balance.Time.WeeksPerYear - 1));
+        }
+
+        [Test]
+        public void バックはチェキとキャストドリンクとボトルにしか付かない()
+        {
+            // 在庫を空にすると、商品は 1 つも出ずチャージだけが残る。
+            var s = NewState();
+            s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 60));
+            s.Shop.CashYen = 100_000_000;
+
+            var r = RunOneWeek(s, Weather.Sunny);
+
+            Assert.Greater(r.RevenueYen, 0L, "チャージが入っていない");
+            Assert.AreEqual(0L, r.CastStats[0].BackableSalesYen,
+                "チャージにバックが付いている");
+            Assert.AreEqual(0L, r.CastStats[0].BackYen);
+        }
+
+        [Test]
+        public void チャージぶんはバックの対象外になる()
+        {
+            var s = NewState();
+            s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 60));
+            FillStock(s.Shop);
+            s.Shop.CashYen = 100_000_000;
+
+            var r = RunOneWeek(s, Weather.Sunny);
+            var stats = r.CastStats[0];
+
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
+            long nonBackable = stats.SalesYen - stats.BackableSalesYen;
+
+            Assert.GreaterOrEqual(nonBackable, guestHours * balance.Visit.ChargePerHourYen,
+                "チャージがバック対象に混ざっている");
+        }
+
+        [Test]
+        public void チェキが売れるとバックが発生する()
+        {
+            var s = NewState();
+            var c = MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 60);
+            s.Shop.Roster.Add(c);
+            FillStock(s.Shop);
+            s.Shop.CashYen = 100_000_000;
+
+            var r = RunOneWeek(s, Weather.Sunny);
+            var stats = r.CastStats[0];
+
+            Assert.Greater(stats.BackableSalesYen, 0L);
+            Assert.Less(stats.BackableSalesYen, stats.SalesYen,
+                "全売上がバック対象になっている");
+            Assert.AreEqual(
+                (long)System.Math.Round(stats.BackableSalesYen * balance.Wage.BackRate),
+                stats.BackYen);
+        }
+
+        [Test]
+        public void 客はシフトより長くは居られない()
+        {
+            var s = NewState();
+            // トーク 100 なら延長確率は最大だが、2 時間シフトなら 2 時間で打ち切られる。
+            s.Shop.Roster.Add(MakeCast("c1", "話し上手", 30, regulars: 100, fame: 0, talk: 100));
+            FillStock(s.Shop);
+            s.Shop.CashYen = 100_000_000;
+
+            GameFlow.BeginWeek(s);
+            ForceWeather(s, Weather.Sunny);
+
+            var shift = new Shift();
+            shift.Set("c1", 0, new ShiftSlot(21, 23));   // 2 時間
+            var r = GameFlow.RunWeek(s, shift);
+
+            Assert.Greater(r.Days[0].Visitors, 0);
+            Assert.LessOrEqual(r.Days[0].GuestHours, r.Days[0].Visitors * 2,
+                "2 時間シフトなのに 2 時間を超えて滞在している");
+        }
+
+        [Test]
+        public void 営業時間外のシフトは弾かれる()
+        {
+            string reason;
+
+            Assert.IsFalse(Shift.IsValid(new ShiftSlot(16, 23), 0, balance, out reason));
+            StringAssert.Contains("開店", reason);
+
+            Assert.IsFalse(Shift.IsValid(new ShiftSlot(17, 24), 0, balance, out reason));
+            StringAssert.Contains("閉店", reason);
+
+            Assert.IsFalse(Shift.IsValid(new ShiftSlot(22, 23), 0, balance, out reason));
+            StringAssert.Contains("最短シフト", reason);
+
+            Assert.IsTrue(Shift.IsValid(new ShiftSlot(17, 23), 0, balance, out reason));
+            Assert.IsTrue(Shift.IsValid(new ShiftSlot(15, 23), 5, balance, out reason),
+                "休日は 15 時から開けられる");
+            Assert.IsFalse(Shift.IsValid(new ShiftSlot(15, 23), 0, balance, out reason),
+                "平日は 15 時には開いていない");
+            Assert.IsTrue(Shift.IsValid(ShiftSlot.Off, 0, balance, out reason), "休みは常に有効");
+        }
+
         [Test]
         public void 疲労は接客人数ではなく接客時間に比例する()
         {
@@ -710,7 +932,7 @@ namespace Concafe.Tests
 
                 foreach (var c in s.Shop.Roster) ManagerActions.Care(s, c);
 
-                var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 4));
+                var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 4, balance));
 
                 revenue += r.RevenueYen;
                 visitors += r.TotalVisitors;
@@ -829,7 +1051,7 @@ namespace Concafe.Tests
             // ノンアルを売っても BottleFatigueTiers は積まれない。
             for (int day = 0; day < 20; day++)
             {
-                var r = OrderRules.Serve(minor, 30, balance, s.Shop.Stock, s.Rng.Orders);
+                var r = OrderRules.Serve(minor, 30, 6, balance, s.Shop.Stock, s.Rng.Orders);
                 bottles += r.BottlesSold;
                 tierSum += r.BottleFatigueTiers;
             }
@@ -896,7 +1118,7 @@ namespace Concafe.Tests
             ManagerActions.Order(s, StockKey.ChekiFilm, 300);
 
             long cashAfterOrder = s.Shop.CashYen;
-            var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 4));
+            var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 4, balance));
 
             Assert.Greater(r.PurchaseYen, 0L, "仕入れ費が記録されていない");
             Assert.AreEqual(10_000_000L - r.PurchaseYen, cashAfterOrder,
@@ -978,7 +1200,7 @@ namespace Concafe.Tests
             s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0));
             FillStock(s.Shop);
 
-            var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 7));
+            var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
 
             foreach (var day in r.Days)
                 Assert.AreEqual(Weather.Sunny, day.Weather);

@@ -54,7 +54,7 @@ namespace Concafe.Simulation.Rules
             var stats = BuildStats(state, shift);
 
             RunBusinessWeek(state, shift, stats, result);
-            Settle(state, stats, result);
+            Settle(state, shift, stats, result);
 
             // 決算で資金が尽きたらそこで終わる。離脱判定まで進めない。
             if (state.Shop.CashYen < 0)
@@ -86,6 +86,7 @@ namespace Concafe.Simulation.Rules
                     CastId = c.Id,
                     StageName = c.StageName,
                     WorkDays = shift.WorkDays(c.Id),
+                    WorkHours = shift.WorkHours(c.Id),
                 };
             }
             return stats;
@@ -102,12 +103,21 @@ namespace Concafe.Simulation.Rules
             for (int day = 0; day < Shift.DaysPerWeek; day++)
             {
                 var weather = state.Weather[day];
-                var dayResult = new DayResult { Weather = weather };
+                var dayResult = new DayResult
+                {
+                    Weather = weather,
+                    OpenHours = balance.Business.OpenHours(day),
+                    IsHoliday = balance.Business.IsHoliday(day),
+                };
 
                 // ロスターの順に走るので、同じ種なら必ず同じ結果になる。
-                var working = new List<Cast>();
+                var working = new List<VisitorRules.OnDuty>();
                 foreach (var c in state.Shop.Roster)
-                    if (shift.IsWorking(c.Id, day)) working.Add(c);
+                {
+                    var slot = shift.Get(c.Id, day);
+                    if (slot.IsWorking)
+                        working.Add(new VisitorRules.OnDuty { Cast = c, Slot = slot });
+                }
 
                 if (working.Count == 0)
                 {
@@ -121,7 +131,8 @@ namespace Concafe.Simulation.Rules
 
                 foreach (var a in assignments)
                 {
-                    var service = OrderRules.Serve(a.Cast, a.Total, balance, stock, rng);
+                    var service = OrderRules.Serve(
+                        a.Cast, a.Total, a.Slot.Hours, balance, stock, rng);
 
                     dayResult.Visitors += a.Total;
                     dayResult.GuestHours += service.GuestHours;
@@ -135,6 +146,7 @@ namespace Concafe.Simulation.Rules
                     s.Guests += a.Total;
                     s.GuestHours += service.GuestHours;
                     s.SalesYen += service.SalesYen;
+                    s.BackableSalesYen += service.BackableSalesYen;
                     s.BottlesSold += service.BottlesSold;
                     s.AlcoholDrinksServed += service.AlcoholDrinks;
 
@@ -142,7 +154,7 @@ namespace Concafe.Simulation.Rules
                     FatigueRules.ApplyWork(a.Cast, service, balance, weather);
                     s.FatigueGained += a.Cast.Fatigue - before;
 
-                    GrowthRules.ApplyWorkDay(a.Cast, balance);
+                    GrowthRules.ApplyWorkDay(a.Cast, a.Slot.Hours, balance);
                 }
 
                 // 休業日のキャストは回復する。
@@ -158,14 +170,18 @@ namespace Concafe.Simulation.Rules
         }
 
         static void Settle(
-            GameState state, Dictionary<string, CastWeekStats> stats, WeekResult result)
+            GameState state, Shift shift,
+            Dictionary<string, CastWeekStats> stats, WeekResult result)
         {
             var balance = state.Balance;
+            int week = state.Week.AbsoluteWeek;
 
             foreach (var c in state.Shop.Roster)
             {
                 var s = stats[c.Id];
-                s.WageYen = WageRules.WeeklyYen(c, s.WorkDays, s.SalesYen, balance);
+                s.HourlyYen = WageRules.HourlyYen(c, balance, week);
+                s.BackYen = WageRules.BackYen(s.BackableSalesYen, balance);
+                s.WageYen = WageRules.WeeklyYen(c, shift, s.BackableSalesYen, balance, week);
                 result.WageYen += s.WageYen;
             }
 

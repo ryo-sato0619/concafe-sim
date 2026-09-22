@@ -9,6 +9,8 @@ namespace Concafe.Simulation.Rules
     public struct GuestAssignment
     {
         public Cast Cast;
+        /// <summary>そのキャストのシフト。滞在時間の上限に使う。</summary>
+        public ShiftSlot Slot;
         /// <summary>固定客。そのキャストに紐づいており、離脱で失われる。</summary>
         public int Regulars;
         /// <summary>知名度で釣った新規客。</summary>
@@ -40,21 +42,40 @@ namespace Concafe.Simulation.Rules
         /// 雨は fameFactor だけを下げるので固定客は減らない。
         /// 台風・大雪は stormFactor が固定客ごと潰す。
         /// </summary>
+        /// <summary>
+        /// 出勤キャストとそのシフト。
+        /// </summary>
+        public struct OnDuty
+        {
+            public Cast Cast;
+            public ShiftSlot Slot;
+        }
+
         public static List<GuestAssignment> Assign(
-            IReadOnlyList<Cast> working, BalanceData balance, Weather weather, GameRandom rng)
+            IReadOnlyList<OnDuty> working, BalanceData balance, Weather weather, GameRandom rng)
         {
             var result = new List<GuestAssignment>(working.Count);
             if (working.Count == 0) return result;
 
             var w = WeatherGenerator.Coefficients(balance, weather);
-            double regularBase = balance.Visitors.RegularBase;
-            double fameBase = balance.Visitors.FameBase;
+
+            // 来客は「出勤した時間数」に比例する。平日の全時間（開店〜閉店）を
+            // 1.0 として比で効かせているので、平日フル出勤の来客数は
+            // シフトを時刻で持つ前と変わらない（T-44 を維持する）。
+            double baseline = balance.Business.BaselineOpenHours;
 
             // 固定客。天候のうち stormFactor だけが効く。
-            foreach (var c in working)
+            foreach (var d in working)
             {
-                int regulars = (int)(c.Current.Regulars * regularBase * w.StormFactor);
-                result.Add(new GuestAssignment { Cast = c, Regulars = regulars, Newcomers = 0 });
+                double hoursFactor = d.Slot.Hours / baseline;
+                int regulars = FloorCount(
+                    d.Cast.Current.Regulars * balance.Visitors.RegularBase
+                    * hoursFactor * w.StormFactor);
+
+                result.Add(new GuestAssignment
+                {
+                    Cast = d.Cast, Slot = d.Slot, Regulars = regulars, Newcomers = 0,
+                });
             }
 
             // 新規客。知名度 × ルックス倍率に fameFactor と stormFactor の両方が効く。
@@ -62,12 +83,14 @@ namespace Concafe.Simulation.Rules
             double fameRaw = 0;
             for (int i = 0; i < working.Count; i++)
             {
-                double v = working[i].Current.Fame * LooksMultiplier(working[i], balance);
+                double v = working[i].Cast.Current.Fame * LooksMultiplier(working[i].Cast, balance)
+                         * (working[i].Slot.Hours / baseline);
                 fameWeights[i] = v;
                 fameRaw += v;
             }
 
-            int newcomers = (int)(fameRaw * fameBase * w.FameFactor * w.StormFactor);
+            int newcomers = FloorCount(
+                fameRaw * balance.Visitors.FameBase * w.FameFactor * w.StormFactor);
 
             for (int n = 0; n < newcomers; n++)
             {
@@ -80,6 +103,20 @@ namespace Concafe.Simulation.Rules
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 客数への切り下げ。ごく小さな余裕を足してから切り下げる。
+        ///
+        /// 係数の掛け算は浮動小数なので、ちょうど整数になるはずの値が
+        /// わずかに下回ることがある。たとえば休日の固定客は
+        /// 20 × 0.15 × (8/6) = 4.0 だが、実際には 3.9999999999999996 になり、
+        /// 素直に切り下げると 3 人になってしまう。
+        /// </summary>
+        static int FloorCount(double value)
+        {
+            if (value <= 0) return 0;
+            return (int)(value + 1e-9);
         }
 
         public static int TotalVisitors(List<GuestAssignment> assignments)

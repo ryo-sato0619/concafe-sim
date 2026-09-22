@@ -9,6 +9,13 @@ namespace Concafe.Simulation.Rules
     public struct ServiceResult
     {
         public long SalesYen;
+
+        /// <summary>
+        /// バックの対象になる売上。チェキ・キャストドリンク・ボトルのみ。
+        /// チャージと客のドリンクは店の売上なので含めない（設計書 14.3）。
+        /// </summary>
+        public long BackableSalesYen;
+
         public int LostOrders;
         public long LostSalesYen;
 
@@ -123,10 +130,11 @@ namespace Concafe.Simulation.Rules
         /// 1 日分の接客。客ごとに滞在時間を決め、1 時間ごとに注文を判定する。
         /// </summary>
         public static ServiceResult Serve(
-            Cast cast, int guests, BalanceData balance, Inventory stock, GameRandom rng)
+            Cast cast, int guests, int shiftHours,
+            BalanceData balance, Inventory stock, GameRandom rng)
         {
             var r = new ServiceResult();
-            if (guests <= 0) return r;
+            if (guests <= 0 || shiftHours <= 0) return r;
 
             double chekiRate = ChekiRate(cast, balance);
             double drinkRate = CastDrinkRate(cast, balance);
@@ -138,7 +146,10 @@ namespace Concafe.Simulation.Rules
             var bottleItem = BottleStockItem(cast);
             bool minor = cast.IsMinor;
 
+            // 客はそのキャストのシフトより長くは居られない。
             int maxStay = balance.Visit.MaxStayHours;
+            if (shiftHours < maxStay) maxStay = shiftHours;
+
             long charge = balance.Visit.ChargePerHourYen;
 
             for (int g = 0; g < guests; g++)
@@ -155,7 +166,7 @@ namespace Concafe.Simulation.Rules
                     r.SalesYen += charge;
 
                     // 客のドリンク。1 時間あたり 1 杯（設計書 4.3）。在庫を消費する。
-                    ServeBaseDrink(minor, balance, stock, ref r);
+                    ServeBaseDrink(balance, stock, ref r);
 
                     if (rng.Chance(chekiRate))
                         Consume(StockKey.ChekiFilm, balance.Items.ChekiFilm.PriceYen, stock, ref r);
@@ -171,26 +182,32 @@ namespace Concafe.Simulation.Rules
             return r;
         }
 
-        static void ServeBaseDrink(bool minor, BalanceData balance, Inventory stock, ref ServiceResult r)
+        /// <summary>
+        /// 客が自分で飲む 1 杯。
+        ///
+        /// **キャストの年齢は関係ない。** 年齢制限の対象はキャストが口にする
+        /// キャストドリンクと、キャストが付くボトルだけである（企画書 3.1）。
+        /// 客が酒を飲むことを未成年キャストが止める理由はない。
+        ///
+        /// アルコールとソフトドリンクのどちらでもよく、あるものから出す。
+        /// 品目を分けて持っているのはキャストドリンクとボトルの年齢判定のためで、
+        /// 客のドリンクでまで分けると、未成年中心のシフトのときに
+        /// ソフトドリンクを切らしただけで売上が止まってしまう。
+        /// </summary>
+        static void ServeBaseDrink(BalanceData balance, Inventory stock, ref ServiceResult r)
         {
-            // 未成年の担当客にはアルコール在庫を触らせない（不変条件 3）。
-            if (!minor && stock.TryConsume(StockKey.Alcohol))
-            {
-                r.SalesYen += balance.Items.Alcohol.PriceYen;
-                return;
-            }
+            long price = balance.Visit.GuestDrinkPriceYen;
 
-            if (stock.TryConsume(StockKey.SoftDrink))
+            // 売価は一律。違うのは原価だけなので、在庫のあるほうから出す。
+            if (stock.TryConsume(StockKey.Alcohol) || stock.TryConsume(StockKey.SoftDrink))
             {
-                r.SalesYen += balance.Items.SoftDrink.PriceYen;
+                r.SalesYen += price;
                 return;
             }
 
             // どちらも無い。飲み物を出せなかった。
             r.LostOrders++;
-            r.LostSalesYen += minor
-                ? balance.Items.SoftDrink.PriceYen
-                : balance.Items.Alcohol.PriceYen;
+            r.LostSalesYen += price;
         }
 
         static void ServeCastDrink(bool minor, BalanceData balance, Inventory stock, ref ServiceResult r)
@@ -200,21 +217,28 @@ namespace Concafe.Simulation.Rules
             if (minor)
             {
                 // アルコールはソフトドリンクに変換される（要件 4.3）。
-                if (stock.TryConsume(StockKey.SoftDrink)) r.SalesYen += price;
+                if (stock.TryConsume(StockKey.SoftDrink)) Earn(price, ref r);
                 else { r.LostOrders++; r.LostSalesYen += price; }
                 return;
             }
 
             if (stock.TryConsume(StockKey.Alcohol))
             {
-                r.SalesYen += price;
+                Earn(price, ref r);
                 r.AlcoholDrinks++;
                 return;
             }
 
             // 酒が切れていたらソフトドリンクで出す。酒疲労は発生しない。
-            if (stock.TryConsume(StockKey.SoftDrink)) r.SalesYen += price;
+            if (stock.TryConsume(StockKey.SoftDrink)) Earn(price, ref r);
             else { r.LostOrders++; r.LostSalesYen += price; }
+        }
+
+        /// <summary>バック対象の売上を計上する。</summary>
+        static void Earn(long price, ref ServiceResult r)
+        {
+            r.SalesYen += price;
+            r.BackableSalesYen += price;
         }
 
         static void ServeBottle(
@@ -245,15 +269,16 @@ namespace Concafe.Simulation.Rules
             int index = candidates[rng.NextInt(0, candidates.Count)];
             if (!stock.TryConsume(StockKey.Bottle(item, index))) return;
 
-            r.SalesYen += tiers[index].PriceYen;
+            Earn(tiers[index].PriceYen, ref r);
             r.BottlesSold++;
             // ノンアルコールは fatigueTier が 0 なので酒疲労を生まない。
             r.BottleFatigueTiers += tiers[index].FatigueTier;
         }
 
+        /// <summary>チェキ用。バック対象。</summary>
         static void Consume(StockKey key, long price, Inventory stock, ref ServiceResult r)
         {
-            if (stock.TryConsume(key)) r.SalesYen += price;
+            if (stock.TryConsume(key)) Earn(price, ref r);
             else { r.LostOrders++; r.LostSalesYen += price; }
         }
     }

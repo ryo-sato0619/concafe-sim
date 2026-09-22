@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 7,
 
   "time": {
     "weeksPerYear": 48,
@@ -53,9 +53,29 @@
     "forecastAccuracy": [1.0, 0.95, 0.88, 0.80, 0.72, 0.65, 0.58]
   },
 
+  "business": {
+    "_hours": "平日は17時〜23時、休日は15時〜23時",
+    "weekdayOpenHour": 17,
+    "holidayOpenHour": 15,
+    "closeHour": 23,
+
+    "_lateNight": "この時刻以降が深夜割増。シフトが深夜帯に掛かった分だけ乗る",
+    "lateNightFromHour": 22,
+    "lateNightMultiplier": 1.25,
+
+    "_shift": "1回のシフトの最短時間。これ未満は入れられない",
+    "minShiftHours": 2,
+
+    "_holidays": "曜日の添字。0=月曜、6=日曜",
+    "holidayDays": [5, 6]
+  },
+
   "visit": {
-    "_charge": "チャージ。滞在1時間ごとに発生する。客のドリンク1杯と合わせて約2,000円/時間",
-    "chargePerHourYen": 1200,
+    "_charge": "チャージ。滞在1時間ごとに発生する。原価ゼロで全額が粗利",
+    "chargePerHourYen": 1100,
+
+    "_guestDrink": "客が自分で飲む1杯の売価。原価は品目（ソフト80／アルコール150）だけ引く。チャージと合わせてちょうど2,000円/時間",
+    "guestDrinkPriceYen": 900,
 
     "_stay": "滞在は1時間から。1時間ごとに延長判定を行い、maxStayHours で打ち切る",
     "maxStayHours": 4,
@@ -72,9 +92,10 @@
     "bottleRate": 0.03
   },
 
+  "_items": "ソフトドリンクとアルコールは原価だけ持つ。売価は用途で決まる（客のドリンク 900／キャストドリンク 1,600）",
   "items": {
-    "softDrink": { "costYen": 80,  "priceYen": 800 },
-    "alcohol":   { "costYen": 150, "priceYen": 1000 },
+    "softDrink": { "costYen": 80 },
+    "alcohol":   { "costYen": 150 },
     "chekiFilm": { "costYen": 120, "priceYen": 1600 },
     "limited":   { "costYen": 300, "priceYen": 2000 }
   },
@@ -102,9 +123,13 @@
   },
 
   "wage": {
-    "dailyBaseYen": 6000,
-    "dailyStatCoefYen": 40,
-    "commissionRate": 0.05
+    "_hourly": "時給 = baseHourlyYen + 能力平均(トーク・集客・知名度) * hourlyStatCoefYen + 勤続年数 * seniorityPerYearYen",
+    "baseHourlyYen": 1000,
+    "hourlyStatCoefYen": 7,
+    "seniorityPerYearYen": 100,
+
+    "_back": "バックの対象はチェキ・キャストドリンク・ボトルのみ。チャージと客のドリンクは店の売上で対象外",
+    "backRate": 0.15
   },
 
   "fatigue": {

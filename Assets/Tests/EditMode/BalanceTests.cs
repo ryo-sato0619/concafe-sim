@@ -13,7 +13,7 @@ namespace Concafe.Tests
             var b = TestBalance.Load();
 
             Assert.AreEqual(BalanceLoader.SupportedSchemaVersion, b.SchemaVersion);
-            Assert.AreEqual(4, b.SchemaVersion);
+            Assert.AreEqual(7, b.SchemaVersion);
             Assert.AreEqual(48, b.Time.WeeksPerYear);
             Assert.AreEqual(10, b.Time.YearsPerRun);
             Assert.AreEqual(480, b.Time.TotalWeeks);
@@ -235,7 +235,7 @@ namespace Concafe.Tests
         public void スキーマ版が違えば弾く()
         {
             string json = Mutate(TestBalance.RawJson(),
-                @"""schemaVersion"": 4",
+                @"""schemaVersion"": 7",
                 @"""schemaVersion"": 99");
 
             AssertRejects(json, "schemaVersion");

@@ -6,6 +6,9 @@ namespace Concafe.Simulation.Model
     public struct DayResult
     {
         public Weather Weather;
+        /// <summary>その日の営業時間。平日 6 時間、休日 8 時間。</summary>
+        public int OpenHours;
+        public bool IsHoliday;
         public int Visitors;
         public int GuestHours;
         public long RevenueYen;
@@ -22,11 +25,18 @@ namespace Concafe.Simulation.Model
         public string CastId;
         public string StageName;
         public int WorkDays;
+        /// <summary>出勤した延べ時間。</summary>
+        public int WorkHours;
         public int Guests;
         /// <summary>接客した延べ時間。疲労の源。</summary>
         public int GuestHours;
         public long SalesYen;
+        /// <summary>バックの対象になった売上（チェキ・キャストドリンク・ボトル）。</summary>
+        public long BackableSalesYen;
         public long WageYen;
+        /// <summary>そのうちバックの額。</summary>
+        public long BackYen;
+        public long HourlyYen;
         public double FatigueGained;
         public int BottlesSold;
         public int AlcoholDrinksServed;
