@@ -124,6 +124,7 @@ namespace Concafe.Simulation.Rules
                     var service = OrderRules.Serve(a.Cast, a.Total, balance, stock, rng);
 
                     dayResult.Visitors += a.Total;
+                    dayResult.GuestHours += service.GuestHours;
                     dayResult.RevenueYen += service.SalesYen;
                     dayResult.LostOrders += service.LostOrders;
                     dayResult.LostSalesYen += service.LostSalesYen;
@@ -132,12 +133,13 @@ namespace Concafe.Simulation.Rules
 
                     var s = stats[a.Cast.Id];
                     s.Guests += a.Total;
+                    s.GuestHours += service.GuestHours;
                     s.SalesYen += service.SalesYen;
                     s.BottlesSold += service.BottlesSold;
                     s.AlcoholDrinksServed += service.AlcoholDrinks;
 
                     double before = a.Cast.Fatigue;
-                    FatigueRules.ApplyWork(a.Cast, a.Total, service, balance, weather);
+                    FatigueRules.ApplyWork(a.Cast, service, balance, weather);
                     s.FatigueGained += a.Cast.Fatigue - before;
 
                     GrowthRules.ApplyWorkDay(a.Cast, balance);

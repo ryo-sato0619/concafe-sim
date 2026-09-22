@@ -152,24 +152,33 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void まだ十年を通せない_U17_が未解決()
+        public void 十年を通せる()
         {
-            // 現状の記録。序盤の赤字（設計書 14.8）を埋めていないため、
-            // 素朴なプレイでは 1 年もたずに資金が尽きる。
-            //
-            // U-17 を解決したらこのテストが落ちる。そのとき期待値を
-            // 「10 年を通せる」に書き換えること。
+            // チャージ制の導入で通せるようになった。ただし現状は易しすぎるため、
+            // U-17 でどの係数を締めるかの決定を待っている。
             var r = AutoPlay(2026, verbose: true);
 
             TestContext.WriteLine($"生存週      : {r.WeeksSurvived} / {balance.Time.TotalWeeks}");
             TestContext.WriteLine($"終了理由    : {r.GameOver}");
             TestContext.WriteLine($"最悪の資金  : {r.MinCashYen:N0}");
             TestContext.WriteLine($"初黒字の週  : {r.FirstProfitableWeek}");
+            TestContext.WriteLine($"最終資金    : {r.FinalCashYen:N0}");
 
-            Assert.AreEqual(GameOverReason.CashShortage, r.GameOver,
-                "資金ショート以外で終わった。U-17 の状況が変わったなら設計書 14.8 を見直すこと");
-            Assert.Less(r.WeeksSurvived, 60,
-                "生き残れるようになった。U-17 が解決したなら、このテストと設計書 14.8 を更新すること");
+            Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived, "10 年を通せていない");
+            Assert.AreEqual(GameOverReason.None, r.GameOver);
+        }
+
+        [Test]
+        public void 素朴なプレイでも資金が尽きかけない_U17_要再調整()
+        {
+            // 現状は易しすぎる。素朴なプレイで一度も資金難に陥らない。
+            // U-17 で締めたらこのテストが落ちるので、そのとき期待値を
+            //「一度は資金難に陥るが立て直せる」に書き換えること。
+            var r = AutoPlay(2026);
+
+            Assert.Greater(r.MinCashYen, 0L, "資金がマイナスになった");
+            Assert.Greater(r.MinCashYen, 500_000L,
+                "資金難に陥るようになった。U-17 で締めたならこの期待値を更新すること");
         }
     }
 }

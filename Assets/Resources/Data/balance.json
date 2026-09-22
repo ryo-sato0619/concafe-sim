@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
 
   "time": {
     "weeksPerYear": 48,
@@ -51,6 +51,17 @@
     },
     "_forecastAccuracy": "週頭に見せる予報が当たる確率。先の日ほど外れる（設計書 5.2）",
     "forecastAccuracy": [1.0, 0.95, 0.88, 0.80, 0.72, 0.65, 0.58]
+  },
+
+  "visit": {
+    "_charge": "チャージ。滞在1時間ごとに発生する。客のドリンク1杯と合わせて約2,000円/時間",
+    "chargePerHourYen": 1200,
+
+    "_stay": "滞在は1時間から。1時間ごとに延長判定を行い、maxStayHours で打ち切る",
+    "maxStayHours": 4,
+    "_extend": "延長確率 = extendBase + (トーク / statMax) * extendTalk",
+    "extendBase": 0.15,
+    "extendTalk": 0.45
   },
 
   "orders": {

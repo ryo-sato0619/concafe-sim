@@ -342,8 +342,8 @@ namespace Concafe.Tests
             var c = MakeCast("c1", "テスト", 30, alcohol: 0);
             var service = new ServiceResult();
 
-            double sunny = FatigueRules.DailyGain(c, 0, service, balance, Weather.Sunny);
-            double storm = FatigueRules.DailyGain(c, 0, service, balance, Weather.Storm);
+            double sunny = FatigueRules.DailyGain(c, service, balance, Weather.Sunny);
+            double storm = FatigueRules.DailyGain(c, service, balance, Weather.Storm);
 
             Assert.AreEqual(sunny * 2.0, storm, 1e-12);
         }
@@ -536,14 +536,20 @@ namespace Concafe.Tests
 
             var r = RunOneWeek(s, Weather.Sunny);
 
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
             Assert.Greater(r.TotalVisitors, 0, "客が来ていない");
-            Assert.AreEqual(0L, r.RevenueYen, "在庫が無いのに売上が立っている");
             Assert.Greater(r.LostOrders, 0, "機会損失が記録されていない");
             Assert.Greater(r.LostSalesYen, 0L);
+
+            // 売上はチャージぶんだけ。商品は 1 つも売れていない。
+            Assert.AreEqual(guestHours * balance.Visit.ChargePerHourYen, r.RevenueYen,
+                "在庫が無いのに商品の売上が立っている");
         }
 
         [Test]
-        public void T11b_基本ドリンクは来客数ぶん必ず注文される()
+        public void T11b_基本ドリンクは滞在時間ぶん必ず注文される()
         {
             var s = NewState();
             s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 0));
@@ -554,9 +560,86 @@ namespace Concafe.Tests
             var r = RunOneWeek(s, Weather.Sunny);
             int consumed = before - s.Shop.Stock[StockKey.Alcohol];
 
-            // 来客 1 人につき最低 1 杯。キャストドリンクの分だけ上回る。
-            Assert.GreaterOrEqual(consumed, r.TotalVisitors,
-                "来客数ぶんの基本ドリンクが出ていない（設計書 4.3）");
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
+            // 滞在 1 時間につき最低 1 杯。キャストドリンクの分だけ上回る。
+            Assert.Greater(guestHours, r.TotalVisitors, "延長が一度も起きていない");
+            Assert.GreaterOrEqual(consumed, guestHours,
+                "滞在時間ぶんの基本ドリンクが出ていない（設計書 4.3）");
+        }
+
+        [Test]
+        public void チャージは在庫が無くても入る()
+        {
+            var s = NewState();
+            s.Shop.Roster.Add(MakeCast("c1", "テスト", 30, regulars: 100, fame: 0, talk: 0));
+            // 在庫を一切置かない。
+            s.Shop.CashYen = 100_000_000;
+
+            var r = RunOneWeek(s, Weather.Sunny);
+
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
+            Assert.AreEqual(guestHours * balance.Visit.ChargePerHourYen, r.RevenueYen,
+                "チャージは席と時間の対価なので、在庫に関係なく入る");
+            Assert.Greater(r.LostOrders, 0, "ドリンクの機会損失は記録される");
+        }
+
+        [Test]
+        public void トークが高いと滞在時間が伸びる()
+        {
+            var quiet = MakeCast("c1", "無口", 30, talk: 0);
+            var chatty = MakeCast("c2", "話し上手", 30, talk: 100);
+
+            Assert.AreEqual(balance.Visit.ExtendBase,
+                OrderRules.ExtendChance(quiet, balance), 1e-12);
+            Assert.AreEqual(balance.Visit.ExtendBase + balance.Visit.ExtendTalk,
+                OrderRules.ExtendChance(chatty, balance), 1e-12);
+
+            double quietHours = OrderRules.ExpectedStayHours(quiet, balance);
+            double chattyHours = OrderRules.ExpectedStayHours(chatty, balance);
+
+            TestContext.WriteLine($"トーク 0   の期待滞在: {quietHours:F2} 時間");
+            TestContext.WriteLine($"トーク 100 の期待滞在: {chattyHours:F2} 時間");
+
+            Assert.Greater(chattyHours, quietHours);
+            Assert.LessOrEqual(chattyHours, balance.Visit.MaxStayHours);
+        }
+
+        [Test]
+        public void 滞在時間は上限を超えない()
+        {
+            var s = NewState();
+            // 延長確率を最大にしても maxStayHours で打ち切られる。
+            var c = MakeCast("c1", "話し上手", 30, regulars: 100, fame: 0, talk: 100);
+            s.Shop.Roster.Add(c);
+            FillStock(s.Shop);
+            s.Shop.CashYen = 100_000_000;
+
+            var r = RunOneWeek(s, Weather.Sunny);
+
+            int guestHours = 0;
+            foreach (var day in r.Days) guestHours += day.GuestHours;
+
+            Assert.LessOrEqual(guestHours, r.TotalVisitors * balance.Visit.MaxStayHours);
+        }
+
+        [Test]
+        public void 疲労は接客人数ではなく接客時間に比例する()
+        {
+            var c = MakeCast("c1", "テスト", 30, alcohol: 0);
+
+            double Gain(int guestHours)
+            {
+                var service = new ServiceResult { GuestHours = guestHours };
+                return FatigueRules.DailyGain(c, service, balance, Weather.Sunny);
+            }
+
+            double baseline = Gain(0);
+            Assert.AreEqual(baseline + balance.Fatigue.PerGuest * 10, Gain(10), 1e-12);
+            Assert.AreEqual(baseline + balance.Fatigue.PerGuest * 30, Gain(30), 1e-12);
         }
 
         // ---- T-12: ゲームオーバー -------------------------------------------
@@ -720,7 +803,7 @@ namespace Concafe.Tests
             double Fatigue(int tierSum)
             {
                 var service = new ServiceResult { BottleFatigueTiers = tierSum };
-                return FatigueRules.DailyGain(c, guests: 0, service, balance, Weather.Sunny);
+                return FatigueRules.DailyGain(c, service, balance, Weather.Sunny);
             }
 
             double baseline = Fatigue(0);
@@ -762,7 +845,7 @@ namespace Concafe.Tests
             {
                 var c = MakeCast("c1", "テスト", 30, alcohol: alcohol);
                 var service = new ServiceResult { AlcoholDrinks = 10, BottleFatigueTiers = 6 };
-                return FatigueRules.DailyGain(c, guests: 0, service, balance, Weather.Sunny);
+                return FatigueRules.DailyGain(c, service, balance, Weather.Sunny);
             }
 
             Assert.Greater(Fatigue(0), Fatigue(50));

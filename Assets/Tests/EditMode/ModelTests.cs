@@ -130,7 +130,7 @@ namespace Concafe.Tests
         [Test]
         public void 覚醒でアルコールの解禁段階が増える()
         {
-            // 設計書 4.3.1 の検算。tierPower の値は下がるのに、
+            // 設計書 4.3.3 の検算。tierPower の値は下がるのに、
             // アルコール側は段階が密なため解禁数が増える。
             var minor = Make(19, 80, 60);
             var adult = Make(20, 80, 60);

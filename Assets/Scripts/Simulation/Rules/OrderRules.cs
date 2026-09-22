@@ -12,6 +12,9 @@ namespace Concafe.Simulation.Rules
         public int LostOrders;
         public long LostSalesYen;
 
+        /// <summary>接客した延べ時間。疲労はこれに比例する。</summary>
+        public int GuestHours;
+
         /// <summary>酒のキャストドリンクの杯数。疲労の計算に使う。</summary>
         public int AlcoholDrinks;
         /// <summary>開けたアルコールボトルの段階番号（1 起点）の合計。</summary>
@@ -82,7 +85,42 @@ namespace Concafe.Simulation.Rules
             cast.IsMinor ? StockItem.BottleNonAlcoholic : StockItem.BottleAlcoholic;
 
         /// <summary>
-        /// 1 日分の接客。客ごとに注文を判定して在庫を減らす。
+        /// 滞在を 1 時間延ばす確率。トークで伸びる。
+        ///
+        /// トークは客を呼ぶステータスではなく、呼んだ客を長く座らせる
+        /// ステータスである。集客・知名度が「何人来るか」を決め、
+        /// トークが「1 人からいくら取れるか」を決める。
+        /// </summary>
+        public static double ExtendChance(Cast cast, BalanceData balance)
+        {
+            double max = balance.CastGen.StatMax;
+            double t = max <= 0 ? 0 : cast.Current.Talk / max;
+            if (t < 0) t = 0;
+            if (t > 1) t = 1;
+
+            double p = balance.Visit.ExtendBase + t * balance.Visit.ExtendTalk;
+            if (p < 0) return 0;
+            if (p > 1) return 1;
+            return p;
+        }
+
+        /// <summary>期待滞在時間。表示とバランス確認用。</summary>
+        public static double ExpectedStayHours(Cast cast, BalanceData balance)
+        {
+            double p = ExtendChance(cast, balance);
+            int max = balance.Visit.MaxStayHours;
+
+            double sum = 0, weight = 1;
+            for (int h = 1; h <= max; h++)
+            {
+                sum += weight;
+                weight *= p;
+            }
+            return sum;
+        }
+
+        /// <summary>
+        /// 1 日分の接客。客ごとに滞在時間を決め、1 時間ごとに注文を判定する。
         /// </summary>
         public static ServiceResult Serve(
             Cast cast, int guests, BalanceData balance, Inventory stock, GameRandom rng)
@@ -93,25 +131,41 @@ namespace Concafe.Simulation.Rules
             double chekiRate = ChekiRate(cast, balance);
             double drinkRate = CastDrinkRate(cast, balance);
             double bottleRate = BottleRate(cast, balance);
+            double extend = ExtendChance(cast, balance);
 
             var tiers = TiersFor(cast, balance);
             int unlockedCount = UnlockedTierCount(cast, balance);
             var bottleItem = BottleStockItem(cast);
             bool minor = cast.IsMinor;
 
+            int maxStay = balance.Visit.MaxStayHours;
+            long charge = balance.Visit.ChargePerHourYen;
+
             for (int g = 0; g < guests; g++)
             {
-                // 来客は必ず自分の飲み物を 1 杯注文する（設計書 4.3）。確率判定はしない。
-                ServeBaseDrink(minor, balance, stock, ref r);
+                // 滞在時間を決める。1 時間から始め、延長判定で伸ばす。
+                int hours = 1;
+                while (hours < maxStay && rng.Chance(extend)) hours++;
 
-                if (rng.Chance(chekiRate))
-                    Consume(StockKey.ChekiFilm, balance.Items.ChekiFilm.PriceYen, stock, ref r);
+                r.GuestHours += hours;
 
-                if (rng.Chance(drinkRate))
-                    ServeCastDrink(minor, balance, stock, ref r);
+                for (int h = 0; h < hours; h++)
+                {
+                    // チャージは席と時間の対価なので、在庫に関係なく必ず入る。
+                    r.SalesYen += charge;
 
-                if (rng.Chance(bottleRate))
-                    ServeBottle(tiers, unlockedCount, bottleItem, stock, rng, ref r);
+                    // 客のドリンク。1 時間あたり 1 杯（設計書 4.3）。在庫を消費する。
+                    ServeBaseDrink(minor, balance, stock, ref r);
+
+                    if (rng.Chance(chekiRate))
+                        Consume(StockKey.ChekiFilm, balance.Items.ChekiFilm.PriceYen, stock, ref r);
+
+                    if (rng.Chance(drinkRate))
+                        ServeCastDrink(minor, balance, stock, ref r);
+
+                    if (rng.Chance(bottleRate))
+                        ServeBottle(tiers, unlockedCount, bottleItem, stock, rng, ref r);
+                }
             }
 
             return r;
@@ -187,7 +241,7 @@ namespace Concafe.Simulation.Rules
                 return;
             }
 
-            // v1 は一様抽選（設計書 4.3.1）。重み付けは段階 5 で実測してから決める。
+            // v1 は一様抽選（設計書 4.3.3）。重み付けは段階 5 で実測してから決める。
             int index = candidates[rng.NextInt(0, candidates.Count)];
             if (!stock.TryConsume(StockKey.Bottle(item, index))) return;
 

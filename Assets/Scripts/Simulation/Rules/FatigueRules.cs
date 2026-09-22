@@ -8,11 +8,15 @@ namespace Concafe.Simulation.Rules
         /// <summary>
         /// 出勤 1 日で溜まる疲労（設計書 4.5）。
         ///
+        /// 接客の負荷は「人数」ではなく「延べ時間」で数える。長く座らせるほど疲れる。
+        /// トークを伸ばすと滞在時間が伸びて売上が上がるが、同じだけ寿命を削る。
+        /// この二面性が「育てるほど失う」を数式に落としたものである。
+        ///
         /// 信頼度は蓄積速度にだけ掛かる。疲労限界値には一切触れない（不変条件 1）。
         /// 信頼を積んだキャストは「限界が上がる」のではなく「限界に届くのが遅くなる」。
         /// </summary>
         public static double DailyGain(
-            Cast cast, int guests, ServiceResult service, BalanceData balance, Weather weather)
+            Cast cast, ServiceResult service, BalanceData balance, Weather weather)
         {
             var f = balance.Fatigue;
             double sober = cast.Sober(balance);
@@ -20,7 +24,7 @@ namespace Concafe.Simulation.Rules
             double alcohol = (service.AlcoholDrinks * f.PerDrink
                             + service.BottleFatigueTiers * f.PerBottleTier) * sober;
 
-            double raw = f.Base + guests * f.PerGuest + alcohol;
+            double raw = f.Base + service.GuestHours * f.PerGuest + alcohol;
 
             double stormMul = WeatherGenerator.Coefficients(balance, weather).FatigueMul;
 
@@ -31,9 +35,9 @@ namespace Concafe.Simulation.Rules
         public static double DailyRecovery(BalanceData balance) => balance.Fatigue.RestRecover;
 
         public static void ApplyWork(
-            Cast cast, int guests, ServiceResult service, BalanceData balance, Weather weather)
+            Cast cast, ServiceResult service, BalanceData balance, Weather weather)
         {
-            cast.Fatigue += DailyGain(cast, guests, service, balance, weather);
+            cast.Fatigue += DailyGain(cast, service, balance, weather);
         }
 
         public static void ApplyRest(Cast cast, BalanceData balance)

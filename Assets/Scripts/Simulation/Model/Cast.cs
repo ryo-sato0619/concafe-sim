@@ -100,7 +100,7 @@ namespace Concafe.Simulation.Model
         ///
         /// 未成年は酒耐性を算入しない。これが「20 歳の覚醒」の正体であり、
         /// 溜め込んだ酒耐性が 20 歳になった瞬間に乗って解禁段階が跳ね上がる
-        /// （設計書 4.3.1、不変条件 4）。
+        /// （設計書 4.3.3、不変条件 4）。
         /// </summary>
         public double TierPower(BalanceData balance)
         {

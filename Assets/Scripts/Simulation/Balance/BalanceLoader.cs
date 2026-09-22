@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 3;
+        public const int SupportedSchemaVersion = 4;
 
         public static BalanceData Load(string json)
         {
@@ -135,6 +135,15 @@ namespace Concafe.Simulation.Balance
                 Seasons = seasons,
                 ForecastAccuracy = NumList(wgen["forecastAccuracy"],
                                            "weatherGen.forecastAccuracy", problems),
+            };
+
+            var visit = Section(root, "visit", problems);
+            d.Visit = new VisitBalance
+            {
+                ChargePerHourYen = Yen(visit, "visit.chargePerHourYen", problems, "chargePerHourYen"),
+                MaxStayHours = Int(visit, "visit.maxStayHours", problems, "maxStayHours"),
+                ExtendBase = Num(visit, "visit.extendBase", problems, "extendBase"),
+                ExtendTalk = Num(visit, "visit.extendTalk", problems, "extendTalk"),
             };
 
             var ord = Section(root, "orders", problems);
@@ -402,6 +411,16 @@ namespace Concafe.Simulation.Balance
                                      "先の日ほど当たりにくい必要がある");
                 }
             }
+
+            // 来店とチャージ
+            if (d.Visit.ChargePerHourYen < 0) problems.Add("visit.chargePerHourYen が負");
+            if (d.Visit.MaxStayHours < 1) problems.Add("visit.maxStayHours が 1 未満");
+            Rate(d.Visit.ExtendBase, "visit.extendBase", problems);
+            Rate(d.Visit.ExtendTalk, "visit.extendTalk", problems);
+            if (d.Visit.ExtendBase + d.Visit.ExtendTalk >= 1.0)
+                problems.Add("visit.extendBase + extendTalk が 1 以上。トーク最大の客が永久に居座る");
+            if (d.Visit.ExtendTalk <= 0)
+                problems.Add("visit.extendTalk が 0 以下。トークが滞在時間に効かなくなる");
 
             // 注文
             Rate(d.Orders.ChekiRate, "orders.chekiRate", problems);

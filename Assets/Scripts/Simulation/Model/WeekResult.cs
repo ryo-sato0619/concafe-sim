@@ -7,6 +7,7 @@ namespace Concafe.Simulation.Model
     {
         public Weather Weather;
         public int Visitors;
+        public int GuestHours;
         public long RevenueYen;
         /// <summary>在庫切れで失った注文の数。</summary>
         public int LostOrders;
@@ -22,6 +23,8 @@ namespace Concafe.Simulation.Model
         public string StageName;
         public int WorkDays;
         public int Guests;
+        /// <summary>接客した延べ時間。疲労の源。</summary>
+        public int GuestHours;
         public long SalesYen;
         public long WageYen;
         public double FatigueGained;

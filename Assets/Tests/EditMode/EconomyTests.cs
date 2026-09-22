@@ -140,38 +140,42 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void 客単価が二千円前後()
+        public void 客単価が四千円前後()
         {
+            // チャージ制（滞在 1 時間あたり チャージ 1,200 ＋ ドリンク約 1,000）に
+            // したことで、1 杯だけだった頃の 1,930 円から倍増した。
             var m = Measure(3, EveryDay);
-            Assert.That(m.AverageSpendYen, Is.EqualTo(1930).Within(150),
-                "客単価が動いた。商品価格か注文率を変えたなら設計書 14.8 も直すこと");
+            Assert.That(m.AverageSpendYen, Is.EqualTo(3990).Within(200),
+                "客単価が動いた。チャージ・滞在時間・商品価格・注文率のどれかを " +
+                "変えたなら設計書 14.8 も直すこと");
         }
 
         [Test]
-        public void 序盤は全員毎日出勤しても赤字である()
+        public void 序盤から黒字になっている_U17_要再調整()
         {
-            // 設計書 v1.0 の検算は +16,750 円/週 の黒字としていたが、
-            // それは 7 日ぶんの売上に 4 日ぶんの給料を当てた誤りだった。
-            // 実際は全員毎日出勤でも赤字になる。
+            // チャージ制の導入で、赤字 40,601 円/週 が黒字 約198,000 円/週 に反転した。
+            // 「赤字寸前のコンカフェ」からは大きく外れているため、
+            // U-17 でどの係数を締めるかを決める必要がある。
             var m = Measure(3, EveryDay);
 
-            Assert.Less(m.ProfitYen, 0L, "赤字でなくなった。バランスを変えたなら設計書 14.8 を直すこと");
-            Assert.That(m.ProfitYen, Is.EqualTo(-40_000).Within(8_000));
+            Assert.Greater(m.ProfitYen, 0L);
+            Assert.That(m.ProfitYen, Is.EqualTo(198_000).Within(20_000),
+                "収支が動いた。U-17 で締めたなら、この期待値と設計書 14.8 を更新すること");
         }
 
         [Test]
-        public void 週四日のシフトではさらに赤字が深くなる()
+        public void 出勤を減らすと利益が減る()
         {
             var four = Measure(3, FourDaysStaggered);
             var seven = Measure(3, EveryDay);
 
             Assert.Less(four.ProfitYen, seven.ProfitYen,
                 "出勤を減らすと固定費を売上で割れなくなる");
-            Assert.That(four.ProfitYen, Is.EqualTo(-60_000).Within(10_000));
+            Assert.That(four.ProfitYen, Is.EqualTo(72_000).Within(15_000));
         }
 
         [Test]
-        public void 固定費が黒字化の主な壁になっている()
+        public void 粗利が固定費を大きく上回っている_U17_要再調整()
         {
             var m = Measure(3, EveryDay);
 
@@ -180,8 +184,57 @@ namespace Concafe.Tests
             TestContext.WriteLine($"  粗利（固定費前）: {grossMargin:N0}");
             TestContext.WriteLine($"  固定費との差    : {grossMargin - m.FixedCostYen:N0}");
 
-            Assert.Greater(grossMargin, 0L, "固定費の前で既に赤字なら、価格か原価の問題になる");
-            Assert.Less(grossMargin, m.FixedCostYen, "固定費を賄えている");
+            Assert.Greater(grossMargin, m.FixedCostYen,
+                "固定費を賄えなくなった。U-17 で締めたならこの期待値を更新すること");
+        }
+
+        [Test]
+        public void トークを伸ばすと客単価が上がる()
+        {
+            // トークは滞在時間を伸ばし、チャージとドリンクの回数を増やす。
+            // 集客・知名度が「何人来るか」、トークが「1 人からいくら取れるか」。
+            Measurement WithTalk(double talk)
+            {
+                var s = new GameState(balance, eggs, 4242);
+                s.Shop.CashYen = 1_000_000_000;
+
+                var c = new Cast { Id = "c0", StageName = "c0", Age = 30, StaminaTier = 5 };
+                c.Current = Stats.Uniform(20);
+                c.Current.Talk = talk;
+                c.Cap = Stats.Uniform(100);
+                c.GrowthRate = Stats.Uniform(0);
+                s.Shop.Roster.Add(c);
+
+                long rev = 0;
+                int visits = 0;
+
+                for (int w = 0; w < 20; w++)
+                {
+                    GameFlow.BeginWeek(s);
+                    for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
+
+                    ManagerActions.Order(s, StockKey.SoftDrink, 400);
+                    ManagerActions.Order(s, StockKey.Alcohol, 400);
+                    ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+                    for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
+                        ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 20);
+
+                    var r = GameFlow.RunWeek(s, Shift.Uniform(s.Shop.Roster, 7));
+                    rev += r.RevenueYen;
+                    visits += r.TotalVisitors;
+                    c.Fatigue = 0;
+                }
+
+                return new Measurement { AverageSpendYen = rev / (double)visits };
+            }
+
+            double low = WithTalk(10).AverageSpendYen;
+            double high = WithTalk(90).AverageSpendYen;
+
+            TestContext.WriteLine($"トーク 10 の客単価: {low:N0}");
+            TestContext.WriteLine($"トーク 90 の客単価: {high:N0}");
+
+            Assert.Greater(high, low * 1.5, "トークが客単価に十分効いていない");
         }
     }
 }

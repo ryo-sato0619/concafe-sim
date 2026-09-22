@@ -21,6 +21,7 @@ namespace Concafe.Simulation.Balance
         public VisitorBalance Visitors { get; internal set; }
         public IReadOnlyDictionary<string, WeatherBalance> Weather { get; internal set; }
         public WeatherGenBalance WeatherGen { get; internal set; }
+        public VisitBalance Visit { get; internal set; }
         public OrderBalance Orders { get; internal set; }
         public ItemBalance Items { get; internal set; }
         public long CastDrinkPriceYen { get; internal set; }
@@ -123,6 +124,26 @@ namespace Concafe.Simulation.Balance
         /// 先の日ほど外れる。予報を確定情報にしないための仕掛け（設計書 5.2）。
         /// </summary>
         public IReadOnlyList<double> ForecastAccuracy { get; internal set; }
+    }
+
+    /// <summary>
+    /// 来店とチャージ。
+    ///
+    /// 売上の土台は「滞在 1 時間あたり チャージ ＋ 客のドリンク 1 杯」で、
+    /// 合わせて約 2,000 円になる。来客 1 人につき 1 杯ではない。
+    ///
+    /// 滞在時間はトークで伸びる。トークは客を呼ぶステータスではなく、
+    /// 呼んだ客を長く座らせて金を落とさせるステータスである。
+    /// </summary>
+    public sealed class VisitBalance
+    {
+        public long ChargePerHourYen { get; internal set; }
+        public int MaxStayHours { get; internal set; }
+
+        /// <summary>トーク 0 のときの延長確率。</summary>
+        public double ExtendBase { get; internal set; }
+        /// <summary>トークが最大のときに上乗せされる延長確率。</summary>
+        public double ExtendTalk { get; internal set; }
     }
 
     public sealed class OrderBalance
