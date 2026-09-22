@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 10;
+        public const int SupportedSchemaVersion = 11;
 
         public static BalanceData Load(string json)
         {
@@ -87,6 +87,7 @@ namespace Concafe.Simulation.Balance
                 RentPerExpansionYen = Yen(cost, "cost.rentPerExpansionYen", problems, "rentPerExpansionYen"),
                 WeeklyManagerPayYen = Yen(cost, "cost.weeklyManagerPayYen", problems, "weeklyManagerPayYen"),
                 VariableCostRate = Num(cost, "cost.variableCostRate", problems, "variableCostRate"),
+                OneDayManagerBonusRate = Num(cost, "cost.oneDayManagerBonusRate", problems, "oneDayManagerBonusRate"),
             };
 
             var mgr = Section(root, "manager", problems);
@@ -251,6 +252,10 @@ namespace Concafe.Simulation.Balance
                 Base = Num(sc, "scandal.base", problems, "base"),
                 PerDrink = Num(sc, "scandal.perDrink", problems, "perDrink"),
                 MoraleGuard = Num(sc, "scandal.moraleGuard", problems, "moraleGuard"),
+                FameLoss = Num(sc, "scandal.fameLoss", problems, "fameLoss"),
+                RegularsLoss = Num(sc, "scandal.regularsLoss", problems, "regularsLoss"),
+                MoraleLoss = Num(sc, "scandal.moraleLoss", problems, "moraleLoss"),
+                DepartChance = Num(sc, "scandal.departChance", problems, "departChance"),
             };
 
             var recruitNode = root["recruit"];
@@ -393,6 +398,7 @@ namespace Concafe.Simulation.Balance
             Rate(d.Cost.VariableCostRate, "cost.variableCostRate", problems);
             if (d.Cost.VariableCostRate <= 0)
                 problems.Add("cost.variableCostRate が 0 以下。売上が伸びた分がそのまま利益になり、終盤が緩くなる");
+            if (d.Cost.OneDayManagerBonusRate < 0) problems.Add("cost.oneDayManagerBonusRate が負");
 
             // 店長 AP
             if (d.Manager.ApPerWeek <= 0) problems.Add("manager.apPerWeek が 0 以下");
@@ -581,6 +587,10 @@ namespace Concafe.Simulation.Balance
             Rate(d.Scandal.Base, "scandal.base", problems);
             if (d.Scandal.PerDrink < 0) problems.Add("scandal.perDrink が負");
             Rate(d.Scandal.MoraleGuard, "scandal.moraleGuard", problems);
+            Rate(d.Scandal.FameLoss, "scandal.fameLoss", problems);
+            Rate(d.Scandal.RegularsLoss, "scandal.regularsLoss", problems);
+            Rate(d.Scandal.DepartChance, "scandal.departChance", problems);
+            if (d.Scandal.MoraleLoss < 0) problems.Add("scandal.moraleLoss が負");
 
             // 求人
             if (d.Recruit.Count == 0) problems.Add("recruit が空。キャストを採用できない");

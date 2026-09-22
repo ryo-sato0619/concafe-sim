@@ -10,6 +10,8 @@ namespace Concafe.Simulation.Rules
         NotEnoughAp,
         NotEnoughCash,
         NoSlot,
+        /// <summary>特訓本の在庫が無い。</summary>
+        NoBook,
         NotFound,
         Invalid,
     }
@@ -36,6 +38,22 @@ namespace Concafe.Simulation.Rules
         }
 
         /// <summary>
+        /// 特訓本を使う。AP を消費しない（出版関係者 OB の効果）。
+        ///
+        /// AP は店舗規模が大きくなっても増えないため（不変条件 7）、
+        /// これが終盤の AP 不足を緩和する唯一の手段になる。
+        /// </summary>
+        public static ActionResult TrainWithBook(GameState state, Cast cast, StatKind kind)
+        {
+            if (cast == null) return ActionResult.NotFound;
+            if (state.TrainingBooks <= 0) return ActionResult.NoBook;
+
+            state.TrainingBooks--;
+            GrowthRules.Apply(cast, kind, state.Balance.Manager.TrainBaseGain);
+            return ActionResult.Ok;
+        }
+
+        /// <summary>
         /// 悩み相談。疲労を抜き、同時に信頼度を積む。
         ///
         /// 二重の効果を持つのが要点である。目先の疲労を抜くだけでなく、
@@ -50,7 +68,8 @@ namespace Concafe.Simulation.Rules
 
             state.Shop.ManagerAp -= m.CareCostAp;
 
-            cast.Fatigue -= m.CareRecover;
+            // 心理カウンセラー OB は回復量を増やす。信頼度の増え方は変えない。
+            cast.Fatigue -= m.CareRecover * state.Alumni.CareRecoverMultiplier;
             if (cast.Fatigue < 0) cast.Fatigue = 0;
 
             cast.Trust += m.TrustPerCare;
@@ -85,8 +104,10 @@ namespace Concafe.Simulation.Rules
 
             for (int i = 0; i < tier.Candidates; i++)
             {
+                // 腕利きのスカウトマン OB がいると、上限値の高い候補が来る。
                 state.Shop.Applicants.Add(CastFactory.GenerateApplicant(
-                    state.Rng.CastGen, state.Balance, tierIndex, state.TakeCastSerial()));
+                    state.Rng.CastGen, state.Balance, tierIndex, state.TakeCastSerial(),
+                    state.Alumni.RecruitCapBonus));
             }
             return ActionResult.Ok;
         }
@@ -113,7 +134,7 @@ namespace Concafe.Simulation.Rules
         {
             if (amount <= 0) return ActionResult.Invalid;
 
-            long unit = UnitCostYen(state.Balance, key);
+            long unit = UnitCostYen(state.Balance, key, state.Alumni);
             if (unit < 0) return ActionResult.Invalid;
 
             long total = unit * amount;
@@ -125,12 +146,21 @@ namespace Concafe.Simulation.Rules
             return ActionResult.Ok;
         }
 
-        public static long UnitCostYen(BalanceData balance, StockKey key)
+        /// <summary>
+        /// 1 個あたりの仕入れ原価。
+        /// 飲料卸売業者 OB がいるとドリンク類だけが安くなる（要件 6.1）。
+        /// </summary>
+        public static long UnitCostYen(
+            BalanceData balance, StockKey key, AlumniEffects alumni = null)
         {
+            double drinkMul = alumni?.DrinkCostMultiplier ?? 1.0;
+
             switch (key.Item)
             {
-                case StockItem.SoftDrink: return balance.Items.SoftDrink.CostYen;
-                case StockItem.Alcohol: return balance.Items.Alcohol.CostYen;
+                case StockItem.SoftDrink:
+                    return Discounted(balance.Items.SoftDrink.CostYen, drinkMul);
+                case StockItem.Alcohol:
+                    return Discounted(balance.Items.Alcohol.CostYen, drinkMul);
                 case StockItem.ChekiFilm: return balance.Items.ChekiFilm.CostYen;
                 case StockItem.Limited: return balance.Items.Limited.CostYen;
 
@@ -145,6 +175,9 @@ namespace Concafe.Simulation.Rules
                 default: return -1;
             }
         }
+
+        static long Discounted(long costYen, double multiplier) =>
+            (long)System.Math.Round(costYen * multiplier, System.MidpointRounding.AwayFromZero);
 
         static bool InRange(int count, int index) => index >= 0 && index < count;
     }

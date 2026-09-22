@@ -62,6 +62,30 @@ namespace Concafe.Simulation.Rules
         }
 
         /// <summary>
+        /// 炎上してそのまま去る場合。
+        ///
+        /// 不名誉な去り方なので、飛ぶのと同じく悪評が広がる。
+        /// 放火は疲労限界超過のときだけなので、ここでは起きない。
+        /// </summary>
+        public static DepartureRecord DepartInDisgrace(
+            Shop shop, Cast cast, BalanceData balance)
+        {
+            var record = new DepartureRecord
+            {
+                CastId = cast.Id,
+                StageName = cast.StageName,
+                Kind = DepartureKind.RanAway,
+                Override = DepartureOverride.None,
+                Trigger = DepartureTrigger.Scandal,
+                LostRegulars = cast.Current.Regulars,
+            };
+
+            shop.Roster.Remove(cast);
+            record.AntiSpreadTotal = SpreadBadReputation(shop, balance);
+            return record;
+        }
+
+        /// <summary>
         /// 飛ばれたときの悪評。残ったキャスト全員の固定客を削る。
         /// 0 を下回らせない。
         /// </summary>

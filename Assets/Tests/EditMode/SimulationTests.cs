@@ -19,19 +19,21 @@ namespace Concafe.Tests
     {
         BalanceData balance;
         EasterEggSet eggs;
+        CareerSet careers;
 
         [SetUp]
         public void SetUp()
         {
             balance = TestBalance.Load();
             eggs = TestEggs.Load(balance);
+            careers = TestCareers.Load();
         }
 
         // ---- 組み立ての補助 -------------------------------------------------
 
         GameState NewState(ulong seed = 1)
         {
-            var s = new GameState(balance, eggs, seed);
+            var s = new GameState(balance, eggs, careers, seed);
             s.Shop.CastSlots = balance.Shop.MaxCastSlots;
             return s;
         }
@@ -39,7 +41,8 @@ namespace Concafe.Tests
         Cast MakeCast(string id, string name, int age,
                       double regulars = 100, double fame = 0, double talk = 50,
                       double alcohol = 0, double looks = 0, double morale = 50,
-                      int tier = 5, double cap = 100, int birthWeek = 0)
+                      int tier = 5, double cap = 100, int birthWeek = 0,
+                      int scandalResist = 50)
         {
             var c = new Cast
             {
@@ -48,7 +51,7 @@ namespace Concafe.Tests
                 Age = age,
                 BirthWeekOfYear = birthWeek,
                 StaminaTier = tier,
-                ScandalResist = 50,
+                ScandalResist = scandalResist,
             };
             c.Current = new Stats
             {
@@ -246,7 +249,8 @@ namespace Concafe.Tests
         public void T14_四十八週で一歳_四百八十週で十歳()
         {
             var s = NewState();
-            var cast = MakeCast("c1", "テスト", 18, birthWeek: 5);
+            // 炎上で退店すると加齢が止まるため、耐性を最大にして雑音を消す。
+            var cast = MakeCast("c1", "テスト", 18, birthWeek: 5, scandalResist: 100);
             s.Shop.Roster.Add(cast);
             FillStock(s.Shop);
             s.Shop.CashYen = long.MaxValue / 4;
@@ -905,7 +909,7 @@ namespace Concafe.Tests
 
         string Digest(ulong seed)
         {
-            var s = new GameState(balance, eggs, seed);
+            var s = new GameState(balance, eggs, careers, seed);
             s.Shop.CastSlots = balance.Shop.MaxCastSlots;
             s.Shop.CashYen = long.MaxValue / 4;
 

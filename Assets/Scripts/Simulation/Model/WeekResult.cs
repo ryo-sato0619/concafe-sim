@@ -46,6 +46,40 @@ namespace Concafe.Simulation.Model
     {
         /// <summary>疲労が限界を超えた。</summary>
         Burnout,
+        /// <summary>炎上がそのまま退店につながった。</summary>
+        Scandal,
+    }
+
+    public sealed class ScandalRecord
+    {
+        public string CastId;
+        public string StageName;
+        public double FameLost;
+        public double RegularsLost;
+        public double MoraleLost;
+        /// <summary>そのまま店を去ったか。</summary>
+        public bool Departed;
+    }
+
+    public sealed class GraduationRecord
+    {
+        public string CastId;
+        public string StageName;
+        public CareerKind Career;
+        public string CareerName;
+        public long LifetimeSalesYen;
+        /// <summary>失われた固定客。卒業でも固定客は残らない。</summary>
+        public double LostRegulars;
+    }
+
+    /// <summary>OB の差し入れやイベントで、その週に起きたこと。</summary>
+    public sealed class AlumniGiftRecord
+    {
+        public int TrainingBooks;
+        public int PremiumBottles;
+        public int LimitedGoods;
+        public bool OneDayManager;
+        public long CongratulatoryYen;
     }
 
     public sealed class DepartureRecord
@@ -92,8 +126,9 @@ namespace Concafe.Simulation.Model
         /// <summary>給料以外の経費の合計。</summary>
         public long OverheadYen => RentYen + ManagerPayYen + VariableCostYen;
 
-        /// <summary>売上 −（給料 ＋ 仕入れ費 ＋ 諸経費）。</summary>
-        public long ProfitYen => RevenueYen - (WageYen + PurchaseYen + OverheadYen);
+        /// <summary>売上 ＋ ご祝儀 −（給料 ＋ 仕入れ費 ＋ 諸経費）。</summary>
+        public long ProfitYen =>
+            RevenueYen + CongratulatoryYen - (WageYen + PurchaseYen + OverheadYen);
 
         public long CashBeforeYen;
         public long CashAfterYen;
@@ -102,9 +137,17 @@ namespace Concafe.Simulation.Model
         public int LostOrders;
         public long LostSalesYen;
 
+        /// <summary>1 日店長イベントで上乗せされた売上。</summary>
+        public long OneDayManagerBonusYen;
+        /// <summary>ご祝儀。決算に入る。</summary>
+        public long CongratulatoryYen;
+
         public List<CastWeekStats> CastStats = new List<CastWeekStats>();
         public List<DepartureRecord> Departures = new List<DepartureRecord>();
         public List<DepartureWarning> Warnings = new List<DepartureWarning>();
+        public List<ScandalRecord> Scandals = new List<ScandalRecord>();
+        public List<GraduationRecord> Graduations = new List<GraduationRecord>();
+        public AlumniGiftRecord Gifts = new AlumniGiftRecord();
 
         public GameOverReason GameOver = GameOverReason.None;
         public bool IsGameOver => GameOver != GameOverReason.None;

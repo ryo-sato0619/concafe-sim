@@ -42,13 +42,15 @@ namespace Concafe.Simulation.Rules
             return balance.Orders.TalkFloor + t * balance.Orders.TalkSpan;
         }
 
-        public static double ChekiRate(Cast cast, BalanceData balance) =>
+        public static double ChekiRate(
+            Cast cast, BalanceData balance, AlumniEffects alumni = null) =>
             balance.Orders.ChekiRate * TalkFactor(cast, balance)
-                                     * VisitorRules.LooksMultiplier(cast, balance);
+                                     * VisitorRules.LooksMultiplier(cast, balance, alumni);
 
-        public static double CastDrinkRate(Cast cast, BalanceData balance) =>
+        public static double CastDrinkRate(
+            Cast cast, BalanceData balance, AlumniEffects alumni = null) =>
             balance.Orders.CastDrinkRate * TalkFactor(cast, balance)
-                                         * VisitorRules.LooksMultiplier(cast, balance);
+                                         * VisitorRules.LooksMultiplier(cast, balance, alumni);
 
         /// <summary>
         /// ボトルの注文率。
@@ -131,13 +133,14 @@ namespace Concafe.Simulation.Rules
         /// </summary>
         public static ServiceResult Serve(
             Cast cast, int guests, int shiftHours,
-            BalanceData balance, Inventory stock, GameRandom rng)
+            BalanceData balance, Inventory stock, GameRandom rng,
+            AlumniEffects alumni = null)
         {
             var r = new ServiceResult();
             if (guests <= 0 || shiftHours <= 0) return r;
 
-            double chekiRate = ChekiRate(cast, balance);
-            double drinkRate = CastDrinkRate(cast, balance);
+            double chekiRate = ChekiRate(cast, balance, alumni);
+            double drinkRate = CastDrinkRate(cast, balance, alumni);
             double bottleRate = BottleRate(cast, balance);
             double extend = ExtendChance(cast, balance);
 

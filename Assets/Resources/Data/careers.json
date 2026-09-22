@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+
+  "_graduation": "卒業の条件。すべて満たしたうえで、年齢か上限到達のどちらかを満たす必要がある",
+  "graduation": {
+    "minWeeks": 96,
+    "minMorale": 70.0,
+    "_orCondition": "在籍とモラルを満たしたら、年齢がこれ以上か、全パラメータが上限に届いていること",
+    "minAge": 24,
+    "capReachedRatio": 0.98
+  },
+
+  "_caps": "OB が増えても効果が暴走しないための上限",
+  "caps": {
+    "drinkCostMultiplierMin": 0.55,
+    "looksBonusMax": 18.0,
+    "careRecoverMultiplierMax": 2.0,
+    "weatherReliefMax": 0.75,
+    "recruitCapBonusMax": 18.0,
+    "trainingBooksPerWeekMax": 3,
+    "premiumBottlesPerWeekMax": 2,
+    "limitedGoodsPerWeekMax": 40
+  },
+
+  "_careers": "進路。weights は選ばれやすさの重み（パラメータ / 100 に掛ける）。effect が店舗への永続効果",
+  "careers": [
+    {
+      "id": "idol",
+      "name": "アイドル",
+      "weights": { "fame": 1.2, "talk": 0.8, "looks": 1.0 },
+      "effect": { "kind": "oneDayManager", "value": 0.06 },
+      "note": "1日店長イベント。毎週この確率で発生し、その週の売上に倍率が乗る"
+    },
+    {
+      "id": "drinkWholesaler",
+      "name": "飲料卸売業者",
+      "weights": { "regulars": 1.0, "morale": 0.4 },
+      "effect": { "kind": "drinkCost", "value": 0.88 },
+      "note": "ドリンク類（ソフトドリンク・アルコール）の仕入れ原価が永続的に低下する"
+    },
+    {
+      "id": "publisher",
+      "name": "出版関係者",
+      "weights": { "morale": 1.0, "talk": 0.8 },
+      "effect": { "kind": "trainingBook", "value": 0.5 },
+      "note": "AP を消費せずに特訓できる本。毎週この期待値で届く"
+    },
+    {
+      "id": "costumeDesigner",
+      "name": "衣装デザイナー",
+      "weights": { "looks": 1.4 },
+      "effect": { "kind": "looksBonus", "value": 4.0 },
+      "note": "店舗全体のルックスに加算される"
+    },
+    {
+      "id": "scout",
+      "name": "腕利きのスカウトマン",
+      "weights": { "regulars": 0.8, "morale": 0.8, "fame": 0.4 },
+      "effect": { "kind": "recruitCap", "value": 5.0 },
+      "note": "求人で届く候補の成長上限の平均が上がる"
+    },
+    {
+      "id": "counselor",
+      "name": "心理カウンセラー",
+      "weights": { "morale": 1.2 },
+      "effect": { "kind": "careRecover", "value": 1.25 },
+      "note": "悩み相談による疲労回復量が増える。信頼度の増え方は変わらない"
+    },
+    {
+      "id": "webMarketer",
+      "name": "Web マーケター",
+      "weights": { "fame": 1.4 },
+      "effect": { "kind": "weatherRelief", "value": 0.3 },
+      "note": "悪天候時の知名度ペナルティを軽減する。台風の stormFactor には効かない"
+    },
+    {
+      "id": "distillery",
+      "name": "酒造メーカー",
+      "weights": { "alcohol": 1.5 },
+      "effect": { "kind": "premiumBottle", "value": 0.4 },
+      "note": "最高段階のボトルが原価 0 で届く。毎週この期待値"
+    },
+    {
+      "id": "familyBusiness",
+      "name": "実家の家業",
+      "weights": { "morale": 0.3 },
+      "effect": { "kind": "limitedGoods", "value": 8.0 },
+      "note": "原価 0 の期間限定商品が毎週この個数届く"
+    },
+    {
+      "id": "marriedRich",
+      "name": "玉の輿婚",
+      "weights": { "looks": 1.0, "fame": 0.6 },
+      "effect": { "kind": "congratulatory", "value": 0.04, "amountYen": 800000 },
+      "note": "決算時にこの確率でご祝儀が入る。経営の救済枠"
+    }
+  ]
+}

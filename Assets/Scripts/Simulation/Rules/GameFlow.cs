@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Concafe.Simulation.Rng;
 using Concafe.Simulation.Model;
 
 namespace Concafe.Simulation.Rules
@@ -23,9 +24,10 @@ namespace Concafe.Simulation.Rules
         /// </summary>
         public static GameState NewGame(
             Concafe.Simulation.Balance.BalanceData balance,
-            Concafe.Simulation.Balance.EasterEggSet eggs, ulong seed)
+            Concafe.Simulation.Balance.EasterEggSet eggs,
+            Concafe.Simulation.Balance.CareerSet careers, ulong seed)
         {
-            var state = new GameState(balance, eggs, seed);
+            var state = new GameState(balance, eggs, careers, seed);
 
             double bonus = balance.Shop.InitialCastStatBonus;
 
@@ -70,6 +72,55 @@ namespace Concafe.Simulation.Rules
             state.Weather = WeatherGenerator.GenerateWeek(state.Rng.Weather, balance, season);
             state.Forecast = WeatherGenerator.MakeForecast(
                 state.Rng.Weather, balance, season, state.Weather);
+
+            state.PendingGifts = ReceiveAlumniGifts(state);
+        }
+
+        /// <summary>
+        /// OB からの差し入れ。週頭に届く。
+        ///
+        /// 期待値が 1 未満のものは確率として扱う。0.4 本なら 40% で 1 本。
+        /// 在庫はその場で積まれ、原価は掛からない（要件 6.1）。
+        /// </summary>
+        static AlumniGiftRecord ReceiveAlumniGifts(GameState state)
+        {
+            var a = state.Alumni;
+            var rng = state.Rng.Events;
+            var gifts = new AlumniGiftRecord();
+
+            gifts.TrainingBooks = DrawCount(a.TrainingBooksPerWeek, rng);
+            state.TrainingBooks += gifts.TrainingBooks;
+
+            gifts.PremiumBottles = DrawCount(a.PremiumBottlesPerWeek, rng);
+            if (gifts.PremiumBottles > 0)
+            {
+                // 最高段階のボトルが原価 0 で届く。
+                int top = state.Balance.Bottles.Alcoholic.Count - 1;
+                state.Shop.Stock.Add(
+                    StockKey.Bottle(StockItem.BottleAlcoholic, top), gifts.PremiumBottles);
+            }
+
+            gifts.LimitedGoods = DrawCount(a.LimitedGoodsPerWeek, rng);
+            if (gifts.LimitedGoods > 0)
+                state.Shop.Stock.Add(StockKey.Limited, gifts.LimitedGoods);
+
+            gifts.OneDayManager = rng.Chance(a.OneDayManagerChance);
+
+            if (a.CongratulatoryYen > 0 && rng.Chance(a.CongratulatoryChance))
+                gifts.CongratulatoryYen = a.CongratulatoryYen;
+
+            return gifts;
+        }
+
+        /// <summary>期待値から個数を引く。整数部はそのまま、端数は確率として扱う。</summary>
+        static int DrawCount(double expected, GameRandom rng)
+        {
+            if (expected <= 0) return 0;
+
+            int whole = (int)expected;
+            double fraction = expected - whole;
+            if (fraction > 0 && rng.Chance(fraction)) whole++;
+            return whole;
         }
 
         public static WeekResult RunWeek(GameState state, Shift shift)
@@ -103,7 +154,14 @@ namespace Concafe.Simulation.Rules
                 return result;
             }
 
+            // 週末の順序は「卒業 → 離脱 → スキャンダル」。
+            //
+            // 設計書 3.3 は「離職 → スキャンダル → 卒業」としていたが、それだと
+            // 2 年勤めてモラルも高いキャストが疲労限界を超えた瞬間に「飛んだ」
+            // 扱いになる。育て上げた相手の結末を先に見るのが自然なので入れ替えた。
+            ResolveGraduations(state, stats, result);
             ResolveDepartures(state, result);
+            ResolveScandals(state, stats, result);
             CollectWarnings(state, result);
 
             result.CashAfterYen = state.Shop.CashYen;
@@ -164,12 +222,12 @@ namespace Concafe.Simulation.Rules
                     continue;
                 }
 
-                var assignments = VisitorRules.Assign(working, balance, weather, rng);
+                var assignments = VisitorRules.Assign(working, balance, weather, state.Alumni, rng);
 
                 foreach (var a in assignments)
                 {
                     var service = OrderRules.Serve(
-                        a.Cast, a.Total, a.Slot.Hours, balance, stock, rng);
+                        a.Cast, a.Total, a.Slot.Hours, balance, stock, rng, state.Alumni);
 
                     dayResult.Visitors += a.Total;
                     dayResult.GuestHours += service.GuestHours;
@@ -222,11 +280,26 @@ namespace Concafe.Simulation.Rules
                 result.WageYen += s.WageYen;
             }
 
+            result.Gifts = state.PendingGifts;
+
+            // アイドル OB の 1 日店長イベント。その週の売上に上乗せされる。
+            if (result.Gifts.OneDayManager)
+            {
+                result.OneDayManagerBonusYen =
+                    (long)System.Math.Round(result.RevenueYen * balance.Cost.OneDayManagerBonusRate,
+                                            System.MidpointRounding.AwayFromZero);
+                result.RevenueYen += result.OneDayManagerBonusYen;
+            }
+
+            // 玉の輿婚 OB のご祝儀。経営の救済枠（要件 6.1）。
+            result.CongratulatoryYen = result.Gifts.CongratulatoryYen;
+
             result.RentYen = state.Shop.WeeklyRentYen(balance);
             result.ManagerPayYen = balance.Cost.WeeklyManagerPayYen;
             result.VariableCostYen = Shop.VariableCostYen(result.RevenueYen, balance);
 
             state.Shop.CashYen += result.RevenueYen;
+            state.Shop.CashYen += result.CongratulatoryYen;
             state.Shop.CashYen -= result.WageYen;
             state.Shop.CashYen -= result.OverheadYen;
 
@@ -253,6 +326,74 @@ namespace Concafe.Simulation.Rules
                     state.GameOver = GameOverReason.Arson;
                     break;
                 }
+            }
+        }
+
+        static void ResolveGraduations(
+            GameState state, Dictionary<string, CastWeekStats> stats, WeekResult result)
+        {
+            if (state.Careers == null) return;
+
+            int week = state.Week.AbsoluteWeek;
+
+            var leaving = new List<Cast>();
+            foreach (var c in state.Shop.Roster)
+                if (GraduationRules.CanGraduate(c, week, state.Balance, state.Careers))
+                    leaving.Add(c);
+
+            if (leaving.Count == 0) return;
+
+            foreach (var c in leaving)
+            {
+                double lostRegulars = c.Current.Regulars;
+                var alumnus = GraduationRules.Graduate(
+                    state.Shop, c, week, state.Balance, state.Careers, state.Rng.Events);
+
+                var def = state.Careers.Find(alumnus.Career);
+
+                result.Graduations.Add(new GraduationRecord
+                {
+                    CastId = c.Id,
+                    StageName = c.StageName,
+                    Career = alumnus.Career,
+                    CareerName = def?.Name ?? alumnus.Career.ToString(),
+                    LifetimeSalesYen = c.LifetimeSalesYen,
+                    LostRegulars = lostRegulars,
+                });
+            }
+
+            // OB が増えたので効果を作り直す。
+            state.RefreshAlumniEffects();
+        }
+
+        static void ResolveScandals(
+            GameState state, Dictionary<string, CastWeekStats> stats, WeekResult result)
+        {
+            if (state.IsOver) return;
+
+            var balance = state.Balance;
+            var rng = state.Rng.Events;
+
+            var departing = new List<Cast>();
+
+            foreach (var c in state.Shop.Roster)
+            {
+                int drinks = stats.TryGetValue(c.Id, out var s) ? s.AlcoholDrinksServed : 0;
+
+                if (!rng.Chance(ScandalRules.Chance(c, drinks, balance))) continue;
+
+                var record = ScandalRules.Apply(c, balance, rng);
+                result.Scandals.Add(record);
+
+                if (record.Departed) departing.Add(c);
+            }
+
+            foreach (var c in departing)
+            {
+                // 炎上して去るのは不名誉なので、悪評は広がる（飛ぶ側と同じ扱い）。
+                // 放火は疲労限界超過のときだけなので、ここでは起きない。
+                var record = DepartureRules.DepartInDisgrace(state.Shop, c, balance);
+                result.Departures.Add(record);
             }
         }
 

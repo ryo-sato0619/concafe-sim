@@ -107,6 +107,17 @@ namespace Concafe.Tests
         }
 
         [Test]
+        public void 放火イベントの本文が指定どおり()
+        {
+            var ev = eggs.FindEvent("nishiki_burn_down");
+
+            Assert.AreEqual(1, ev.Body.Count);
+            Assert.AreEqual(
+                "精神に限界をきたしたニシキは店舗に火をつけて炎の中で姿を消した",
+                ev.Body[0]);
+        }
+
+        [Test]
         public void 未定義のイベント_ID_を引いても落ちない()
         {
             Assert.IsNull(eggs.FindEvent("存在しない"));

@@ -21,12 +21,19 @@ namespace Concafe.Simulation.Rules
 
     public static class VisitorRules
     {
-        /// <summary>ルックスの乗数。1.0 〜 1.0 + looksBonusMax。</summary>
-        public static double LooksMultiplier(Cast cast, BalanceData balance)
+        /// <summary>
+        /// ルックスの乗数。1.0 〜 1.0 + looksBonusMax。
+        /// 衣装デザイナー OB がいると、素のルックスに加算される（要件 6.1）。
+        /// </summary>
+        public static double LooksMultiplier(
+            Cast cast, BalanceData balance, AlumniEffects alumni = null)
         {
             double max = balance.CastGen.StatMax;
             if (max <= 0) return 1.0;
-            double t = cast.Current.Looks / max;
+
+            double looks = cast.Current.Looks + (alumni?.LooksBonus ?? 0);
+
+            double t = looks / max;
             if (t < 0) t = 0;
             if (t > 1) t = 1;
             return 1.0 + t * balance.Visitors.LooksBonusMax;
@@ -52,12 +59,20 @@ namespace Concafe.Simulation.Rules
         }
 
         public static List<GuestAssignment> Assign(
-            IReadOnlyList<OnDuty> working, BalanceData balance, Weather weather, GameRandom rng)
+            IReadOnlyList<OnDuty> working, BalanceData balance, Weather weather,
+            AlumniEffects alumni, GameRandom rng)
         {
             var result = new List<GuestAssignment>(working.Count);
             if (working.Count == 0) return result;
 
             var w = WeatherGenerator.Coefficients(balance, weather);
+
+            // Web マーケター OB は悪天候時の知名度ペナルティを軽減する。
+            // stormFactor（台風で客が来ない分）には効かない（要件 6.1）。
+            double fameFactor = w.FameFactor;
+            double relief = alumni?.WeatherRelief ?? 0;
+            if (relief > 0 && fameFactor < 1.0)
+                fameFactor += (1.0 - fameFactor) * relief;
 
             // 来客は「出勤した時間数」に比例する。平日の全時間（開店〜閉店）を
             // 1.0 として比で効かせているので、平日フル出勤の来客数は
@@ -83,14 +98,15 @@ namespace Concafe.Simulation.Rules
             double fameRaw = 0;
             for (int i = 0; i < working.Count; i++)
             {
-                double v = working[i].Cast.Current.Fame * LooksMultiplier(working[i].Cast, balance)
+                double v = working[i].Cast.Current.Fame
+                         * LooksMultiplier(working[i].Cast, balance, alumni)
                          * (working[i].Slot.Hours / baseline);
                 fameWeights[i] = v;
                 fameRaw += v;
             }
 
             int newcomers = FloorCount(
-                fameRaw * balance.Visitors.FameBase * w.FameFactor * w.StormFactor);
+                fameRaw * balance.Visitors.FameBase * fameFactor * w.StormFactor);
 
             for (int n = 0; n < newcomers; n++)
             {

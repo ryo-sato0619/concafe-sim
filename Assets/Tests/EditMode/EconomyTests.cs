@@ -16,12 +16,14 @@ namespace Concafe.Tests
     {
         BalanceData balance;
         EasterEggSet eggs;
+        CareerSet careers;
 
         [SetUp]
         public void SetUp()
         {
             balance = TestBalance.Load();
             eggs = TestEggs.Load(balance);
+            careers = TestCareers.Load();
         }
 
         public struct Measurement
@@ -49,12 +51,14 @@ namespace Concafe.Tests
         /// </summary>
         Measurement Measure(int castCount, int[][] pattern, int weeks = 20)
         {
-            var s = new GameState(balance, eggs, 777);
+            var s = new GameState(balance, eggs, careers, 777);
             s.Shop.CashYen = 1_000_000_000;
 
             for (int i = 0; i < castCount; i++)
             {
-                var c = new Cast { Id = "c" + i, StageName = "c" + i, Age = 22, StaminaTier = 5 };
+                // 炎上で数値が削れると収支の測定が乱れるため、耐性を最大にする。
+                var c = new Cast { Id = "c" + i, StageName = "c" + i, Age = 22,
+                                   StaminaTier = 5, ScandalResist = 100 };
                 c.Current = Stats.Uniform(20);
                 c.Cap = Stats.Uniform(20);
                 c.GrowthRate = Stats.Uniform(0);   // 成長させず、同じ実力で測る
@@ -138,12 +142,14 @@ namespace Concafe.Tests
             // 設計書 14.8 の「キャスト 3 人・各パラメータ 20 で 18 人/日」は
             // 平日（17〜23 時の 6 時間）に全員がフル出勤した場合の数である。
             // 営業時間とシフトを時刻で持つようにしても、ここは変わらない。
-            var s = new GameState(balance, eggs, 777);
+            var s = new GameState(balance, eggs, careers, 777);
             s.Shop.CashYen = 1_000_000_000;
 
             for (int i = 0; i < 3; i++)
             {
-                var c = new Cast { Id = "c" + i, StageName = "c" + i, Age = 22, StaminaTier = 5 };
+                // 炎上で数値が削れると収支の測定が乱れるため、耐性を最大にする。
+                var c = new Cast { Id = "c" + i, StageName = "c" + i, Age = 22,
+                                   StaminaTier = 5, ScandalResist = 100 };
                 c.Current = Stats.Uniform(20);
                 c.Cap = Stats.Uniform(20);
                 c.GrowthRate = Stats.Uniform(0);
@@ -173,10 +179,11 @@ namespace Concafe.Tests
         [Test]
         public void 休日は営業時間が長いぶん客が増える()
         {
-            var s = new GameState(balance, eggs, 777);
+            var s = new GameState(balance, eggs, careers, 777);
             s.Shop.CashYen = 1_000_000_000;
 
-            var c0 = new Cast { Id = "c0", StageName = "c0", Age = 22, StaminaTier = 5 };
+            var c0 = new Cast { Id = "c0", StageName = "c0", Age = 22,
+                               StaminaTier = 5, ScandalResist = 100 };
             c0.Current = Stats.Uniform(20);
             c0.Cap = Stats.Uniform(20);
             c0.GrowthRate = Stats.Uniform(0);
@@ -255,10 +262,11 @@ namespace Concafe.Tests
             // 集客・知名度が「何人来るか」、トークが「1 人からいくら取れるか」。
             Measurement WithTalk(double talk)
             {
-                var s = new GameState(balance, eggs, 4242);
+                var s = new GameState(balance, eggs, careers, 4242);
                 s.Shop.CashYen = 1_000_000_000;
 
-                var c = new Cast { Id = "c0", StageName = "c0", Age = 30, StaminaTier = 5 };
+                var c = new Cast { Id = "c0", StageName = "c0", Age = 30,
+                                   StaminaTier = 5, ScandalResist = 100 };
                 c.Current = Stats.Uniform(20);
                 c.Current.Talk = talk;
                 c.Cap = Stats.Uniform(100);

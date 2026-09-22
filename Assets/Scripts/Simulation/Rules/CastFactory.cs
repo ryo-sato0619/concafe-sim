@@ -18,7 +18,8 @@ namespace Concafe.Simulation.Rules
         /// serial は ID の通し番号。同じ種と同じ serial なら必ず同じ候補になる。
         /// </summary>
         public static Applicant GenerateApplicant(
-            GameRandom rng, BalanceData balance, int recruitTierIndex, int serial)
+            GameRandom rng, BalanceData balance, int recruitTierIndex, int serial,
+            double capBonus = 0)
         {
             var gen = balance.CastGen;
             var tier = balance.Recruit[recruitTierIndex];
@@ -37,7 +38,9 @@ namespace Concafe.Simulation.Rules
             foreach (var kind in Stats.AllKinds)
             {
                 // 上限が個体差の本体。求人ティアが高いほど平均が上がる。
-                double cap = rng.NextGaussianClamped(tier.CapMean, tier.CapSpread, 1, statMax);
+                // 腕利きのスカウトマン OB がいれば平均がさらに上がる。
+                double cap = rng.NextGaussianClamped(
+                    tier.CapMean + capBonus, tier.CapSpread, 1, statMax);
                 a.Cap[kind] = cap;
 
                 // 初期値は上限を超えない。

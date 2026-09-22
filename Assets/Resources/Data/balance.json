@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 11,
 
   "time": {
     "weeksPerYear": 48,
@@ -30,7 +30,10 @@
     "weeklyManagerPayYen": 60000,
 
     "_variable": "決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。固定を薄く変動を厚くしてあるのは、キャストが欠けたときに経費も一緒に下がって立て直せるようにするため",
-    "variableCostRate": 0.26
+    "variableCostRate": 0.26,
+
+    "_oneDayManager": "アイドルOBの1日店長イベントで、その週の売上に上乗せされる割合",
+    "oneDayManagerBonusRate": 0.35
   },
 
   "manager": {
@@ -173,9 +176,17 @@
   },
 
   "scandal": {
+    "_chance": "確率 = base * (1 - スキャンダル耐性/100) * (1 + 週の酒杯数 * perDrink) * (1 - モラル/100 * moraleGuard)",
     "base": 0.02,
     "perDrink": 0.01,
-    "moraleGuard": 0.5
+    "moraleGuard": 0.5,
+
+    "_effect": "炎上したときの損失。育てた数値がそのまま削れるのが痛みの本体。重くしすぎると成立する出勤ペースが1つに絞られてプレイヤーの選択が消える",
+    "fameLoss": 0.25,
+    "regularsLoss": 0.15,
+    "moraleLoss": 10.0,
+    "_depart": "炎上がそのまま退店につながる確率",
+    "departChance": 0.15
   },
 
   "recruit": [

@@ -110,6 +110,9 @@ namespace Concafe.Simulation.Balance
 
         /// <summary>決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。</summary>
         public double VariableCostRate { get; internal set; }
+
+        /// <summary>1 日店長イベントで週の売上に上乗せされる割合。</summary>
+        public double OneDayManagerBonusRate { get; internal set; }
     }
 
     public sealed class ManagerBalance
@@ -351,6 +354,15 @@ namespace Concafe.Simulation.Balance
         public double Base { get; internal set; }
         public double PerDrink { get; internal set; }
         public double MoraleGuard { get; internal set; }
+
+        /// <summary>炎上で失う知名度の割合。</summary>
+        public double FameLoss { get; internal set; }
+        /// <summary>炎上で失う集客の割合。</summary>
+        public double RegularsLoss { get; internal set; }
+        /// <summary>炎上で下がるモラル（実数）。</summary>
+        public double MoraleLoss { get; internal set; }
+        /// <summary>炎上がそのまま退店につながる確率。</summary>
+        public double DepartChance { get; internal set; }
     }
 
     public sealed class RecruitTier

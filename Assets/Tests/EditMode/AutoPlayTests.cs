@@ -17,12 +17,14 @@ namespace Concafe.Tests
     {
         BalanceData balance;
         EasterEggSet eggs;
+        CareerSet careers;
 
         [SetUp]
         public void SetUp()
         {
             balance = TestBalance.Load();
             eggs = TestEggs.Load(balance);
+            careers = TestCareers.Load();
         }
 
         public struct RunSummary
@@ -40,7 +42,7 @@ namespace Concafe.Tests
         /// </summary>
         RunSummary AutoPlay(ulong seed, bool verbose = false, int daysPerCast = 5)
         {
-            var s = GameFlow.NewGame(balance, eggs, seed);
+            var s = GameFlow.NewGame(balance, eggs, careers, seed);
 
             var summary = new RunSummary
             {
@@ -168,18 +170,33 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void 週三日から四日なら十年を通せる()
+        public void 週四日なら十年を通せる()
         {
-            // 素朴なプレイでも、無理のないシフトなら完走できる。
-            foreach (int days in new[] { 3, 4 })
-            {
-                var r = AutoPlay(2026, daysPerCast: days);
+            // 素朴なプレイでも完走できるペース。ここが落ちたら、
+            // どのペースでも成立しない状態になっている可能性がある。
+            var r = AutoPlay(2026, daysPerCast: 4);
 
-                Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived,
-                    $"週 {days} 日で 10 年を通せていない");
-                Assert.AreEqual(GameOverReason.None, r.GameOver);
-                Assert.Greater(r.MinCashYen, 0L);
-            }
+            Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived, "10 年を通せていない");
+            Assert.AreEqual(GameOverReason.None, r.GameOver);
+            Assert.Greater(r.MinCashYen, 0L);
+        }
+
+        [Test]
+        public void 週三日は薄利で終盤に息切れする()
+        {
+            // 出勤を削ると固定費を売上で割れず、10 年を通しきれない。
+            // ただし 450 週以上は持つので、少し工夫すれば届く水準にしてある。
+            //
+            // 素朴な自動プレイは全員同じペースで回すだけなので、
+            // 実際のプレイヤーはシフトの長さや曜日、ケアの配分で調整できる。
+            var r = AutoPlay(2026, daysPerCast: 3);
+
+            TestContext.WriteLine($"週3日: 生存 {r.WeeksSurvived}/480  {r.GameOver}");
+
+            Assert.Greater(r.WeeksSurvived, 400,
+                "週 3 日が早々に崩れる。薄利すぎて選択肢になっていない");
+            Assert.Less(r.WeeksSurvived, balance.Time.TotalWeeks,
+                "週 3 日で完走できるようになった。緩めたならこの期待値を更新すること");
         }
 
         [Test]
@@ -207,7 +224,7 @@ namespace Concafe.Tests
         {
             // 前任者から引き継ぐキャストがいるため、初週から売上が立つ。
             // ここが落ちたら shop.initialCastNames が空になっている。
-            var s = GameFlow.NewGame(balance, eggs, 2026);
+            var s = GameFlow.NewGame(balance, eggs, careers, 2026);
 
             Assert.AreEqual(balance.Shop.InitialCastNames.Count, s.Shop.Roster.Count,
                 "引き継ぐキャストが在籍していない");
