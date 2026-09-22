@@ -13,6 +13,7 @@ namespace Concafe.Tests
             var b = TestBalance.Load();
 
             Assert.AreEqual(BalanceLoader.SupportedSchemaVersion, b.SchemaVersion);
+            Assert.AreEqual(2, b.SchemaVersion);
             Assert.AreEqual(48, b.Time.WeeksPerYear);
             Assert.AreEqual(10, b.Time.YearsPerRun);
             Assert.AreEqual(480, b.Time.TotalWeeks);
@@ -234,10 +235,29 @@ namespace Concafe.Tests
         public void スキーマ版が違えば弾く()
         {
             string json = Mutate(TestBalance.RawJson(),
-                @"""schemaVersion"": 1",
+                @"""schemaVersion"": 2",
                 @"""schemaVersion"": 99");
 
             AssertRejects(json, "schemaVersion");
+        }
+
+        [Test]
+        public void 外見のパーツ数が零なら弾く()
+        {
+            string json = Mutate(TestBalance.RawJson(),
+                @"""hairFrontVariants"": 5", @"""hairFrontVariants"": 0");
+
+            AssertRejects(json, "appearance.hairFrontVariants");
+        }
+
+        [Test]
+        public void アクセサリは零でもよい()
+        {
+            string json = Mutate(TestBalance.RawJson(),
+                @"""accessoryVariants"": 4", @"""accessoryVariants"": 0");
+
+            Assert.DoesNotThrow(() => BalanceLoader.Load(json),
+                "アクセサリ無しだけの構成は成立する");
         }
 
         [Test]

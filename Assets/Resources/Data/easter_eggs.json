@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+
+  "_help": {
+    "使い方": "採用時に入力した源氏名が match のいずれかと一致すると発動する。コードは触らない（不変条件 13）。",
+    "match": "完全一致。前後の空白は無視される。表記ゆれは全部並べること。",
+    "enabled": "false にすると一切マッチしない。空き枠はこれで止めてある。",
+    "適用順": "初期値 = clamp((生成値 + statBonus) * statMultiplier)。上限も同じ順。",
+    "all": "statMultiplier / capMultiplier / growthRateMultiplier は all で全体、個別キーで上書きできる。",
+    "個別キー": "regulars / fame / talk / alcohol / looks / morale",
+    "fixedStaminaTier": "1〜5。疲労限界を固定する。生成時にのみ効く（不変条件 1）。",
+    "fixedScandalResist": "0〜100。隠しパラメータを固定する。",
+    "onDeparture": "none / burnDown。疲労限界を超えて離脱するときの結末を差し替える。",
+    "burnDownOn": "any（飛ぶ・転生どちらでも） / runAway（飛ぶ側のときだけ）。",
+    "eventId": "専用イベントの識別子。未実装の ID を書いてもゲームは止まらない。"
+  },
+
+  "eggs": [
+    {
+      "id": "nishiki",
+      "enabled": true,
+      "displayName": "ニシキ",
+      "match": ["ニシキ", "にしき", "錦"],
+      "revealOnHire": true,
+      "hireMessage": "面接の時点で異様だった。覚えが早い。早すぎる。……体は、もつだろうか。",
+
+      "growthRateMultiplier": { "all": 10.0, "alcohol": 0.0 },
+      "fixedStaminaTier": 1,
+      "fixedScandalResist": 0,
+
+      "onDeparture": "burnDown",
+      "burnDownOn": "any",
+      "eventId": "nishiki_burn_down",
+
+      "note": "爆速で完成するが、まず確実に飛ぶか炎上する高リスク個体。通常プレイの上位互換にはしない。"
+    },
+
+    {
+      "id": "slot_stat_bonus",
+      "enabled": false,
+      "displayName": "（空き枠1・初期値特化）",
+      "match": [],
+      "revealOnHire": true,
+      "hireMessage": "",
+
+      "statBonus": { "talk": 30, "looks": 20 },
+      "statMultiplier": { "morale": 0.5 },
+
+      "note": "空き枠1。最初から強いが伸びしろが無い型のひな形。match に名前を入れて enabled を true にすれば動く。"
+    },
+
+    {
+      "id": "slot_cap_bonus",
+      "enabled": false,
+      "displayName": "（空き枠2・上限特化）",
+      "match": [],
+      "revealOnHire": false,
+      "hireMessage": "",
+
+      "capMultiplier": { "all": 1.4 },
+      "statMultiplier": { "all": 0.5 },
+      "fixedStaminaTier": 5,
+
+      "note": "空き枠2。初期値は低いが上限と耐久が高い大器晩成型のひな形。revealOnHire を false にすると、採用時に何も起きなかったように見える。"
+    },
+
+    {
+      "id": "slot_special_event",
+      "enabled": false,
+      "displayName": "（空き枠3・専用イベント）",
+      "match": [],
+      "revealOnHire": true,
+      "hireMessage": "",
+
+      "fixedScandalResist": 100,
+      "eventId": "slot3_event",
+
+      "note": "空き枠3。専用イベントを持つ型のひな形。eventId は未実装でもゲームは止まらないので、先に名前だけ決めても構わない。"
+    }
+  ],
+
+  "events": [
+    {
+      "id": "nishiki_burn_down",
+      "title": "全部燃えてしまえばいい",
+      "gameOver": "arson",
+      "body": [
+        "【仮置きのテキスト。差し替え前提】",
+        "連絡が取れなくなって三日目の夜、店から煙が上がった。",
+        "防犯カメラに残っていたのは、見慣れた後ろ姿だった。",
+        "あれだけ覚えが早かった子が、最後に覚えたのがこれだったのか。",
+        "店は焼けた。もう、どうにもならない。"
+      ]
+    }
+  ]
+}

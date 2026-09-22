@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 1;
+        public const int SupportedSchemaVersion = 2;
 
         public static BalanceData Load(string json)
         {
@@ -220,6 +220,21 @@ namespace Concafe.Simulation.Balance
                 GrowthRateMean = Num(gen, "castGen.growthRateMean", problems, "growthRateMean"),
                 GrowthRateSpread = Num(gen, "castGen.growthRateSpread", problems, "growthRateSpread"),
                 StatMax = Num(gen, "castGen.statMax", problems, "statMax"),
+            };
+
+            var app = Section(root, "appearance", problems);
+            d.Appearance = new AppearanceBalance
+            {
+                BodyVariants = Int(app, "appearance.bodyVariants", problems, "bodyVariants"),
+                DressVariants = Int(app, "appearance.dressVariants", problems, "dressVariants"),
+                HairBackVariants = Int(app, "appearance.hairBackVariants", problems, "hairBackVariants"),
+                HairFrontVariants = Int(app, "appearance.hairFrontVariants", problems, "hairFrontVariants"),
+                EyeVariants = Int(app, "appearance.eyeVariants", problems, "eyeVariants"),
+                AccessoryVariants = Int(app, "appearance.accessoryVariants", problems, "accessoryVariants"),
+                SkinColors = Int(app, "appearance.skinColors", problems, "skinColors"),
+                DressColors = Int(app, "appearance.dressColors", problems, "dressColors"),
+                HairColors = Int(app, "appearance.hairColors", problems, "hairColors"),
+                EyeColors = Int(app, "appearance.eyeColors", problems, "eyeColors"),
             };
 
             return d;
@@ -430,6 +445,25 @@ namespace Concafe.Simulation.Balance
             }
             if (g.StaminaTierWeights.Count > 0 && tierWeightSum <= 0)
                 problems.Add("castGen.staminaTierWeights の合計が 0。疲労 Tier を抽選できない");
+
+            // 外見
+            var a = d.Appearance;
+            Positive(a.BodyVariants, "appearance.bodyVariants", problems);
+            Positive(a.DressVariants, "appearance.dressVariants", problems);
+            Positive(a.HairBackVariants, "appearance.hairBackVariants", problems);
+            Positive(a.HairFrontVariants, "appearance.hairFrontVariants", problems);
+            Positive(a.EyeVariants, "appearance.eyeVariants", problems);
+            Positive(a.SkinColors, "appearance.skinColors", problems);
+            Positive(a.DressColors, "appearance.dressColors", problems);
+            Positive(a.HairColors, "appearance.hairColors", problems);
+            Positive(a.EyeColors, "appearance.eyeColors", problems);
+            // accessoryVariants は 0 でよい（アクセサリ無しのみ）。
+            if (a.AccessoryVariants < 0) problems.Add("appearance.accessoryVariants が負");
+        }
+
+        static void Positive(int v, string path, List<string> problems)
+        {
+            if (v <= 0) problems.Add($"{path} が 0 以下");
         }
 
         static void ValidateBottles(IReadOnlyList<BottleTierBalance> tiers, string path,

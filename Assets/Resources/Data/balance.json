@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
 
   "time": {
     "weeksPerYear": 48,
@@ -130,5 +130,18 @@
     "growthRateMean": 1.0,
     "growthRateSpread": 0.25,
     "statMax": 100.0
+  },
+
+  "appearance": {
+    "bodyVariants": 3,
+    "dressVariants": 5,
+    "hairBackVariants": 5,
+    "hairFrontVariants": 5,
+    "eyeVariants": 5,
+    "accessoryVariants": 4,
+    "skinColors": 5,
+    "dressColors": 6,
+    "hairColors": 8,
+    "eyeColors": 6
   }
 }

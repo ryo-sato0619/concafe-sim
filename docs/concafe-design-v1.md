@@ -498,34 +498,106 @@ Assets/Resources/Sprites/Parts/<layer>/<id>.png
 
 ## 6. イースターエッグ（データ駆動）
 
-`Assets/Resources/Data/easter_eggs.json`:
+`Assets/Resources/Data/easter_eggs.json`。**コードに名前を直接書かない**（不変条件 13）。
+
+### 6.1 エッグの定義
 
 ```json
-[
-  {
-    "id": "nishiki",
-    "match": ["ニシキ", "にしき", "錦"],
-    "growthRateMultiplier": { "all": 10.0, "alcohol": 0.0 },
-    "fixedStaminaTier": 1,
-    "fixedScandalResist": 0,
-    "eventId": "nishiki_special",
-    "revealOnHire": true
-  }
+{
+  "id": "nishiki",
+  "enabled": true,
+  "match": ["ニシキ", "にしき", "錦"],
+  "revealOnHire": true,
+  "hireMessage": "...",
+
+  "growthRateMultiplier": { "all": 10.0, "alcohol": 0.0 },
+  "fixedStaminaTier": 1,
+  "fixedScandalResist": 0,
+
+  "onDeparture": "burnDown",
+  "burnDownOn": "any",
+  "eventId": "nishiki_burn_down"
+}
+```
+
+| フィールド | 既定 | 意味 |
+|---|---|---|
+| `enabled` | false | false なら一切マッチしない。空き枠はこれで止める |
+| `match` | — | 完全一致の候補。前後の空白（全角含む）は無視 |
+| `revealOnHire` | true | 採用直後に「何かが起きた」と見せるか |
+| `statBonus` / `statMultiplier` | 0 / 1 | 初期値 |
+| `capBonus` / `capMultiplier` | 0 / 1 | 成長上限 |
+| `growthRateMultiplier` | 1 | 成長率 |
+| `fixedStaminaTier` | 無指定 | 疲労限界の段階を固定（1〜5） |
+| `fixedScandalResist` | 無指定 | 隠しパラメータを固定（0〜100） |
+| `onDeparture` | none | `burnDown` で離脱の結末を差し替える |
+| `burnDownOn` | any | `any` / `runAway` |
+| `eventId` | null | 専用イベント。**未実装 ID でもゲームは止まらない** |
+
+係数はすべて `all` で全体、個別キー（`regulars` / `fame` / `talk` / `alcohol` /
+`looks` / `morale`）で上書きできる。適用順は
+
+```
+上限 = clamp((生成値 + capBonus) * capMultiplier, 1, statMax)
+初期 = clamp((生成値 + statBonus) * statMultiplier, 0, 上限)
+成長率 = 生成値 * growthRateMultiplier
+```
+
+上限を先に決めるのは、初期値が上限を超えられないためである。
+
+「ニシキ」では `alcohol: 0.0` が `all: 10.0` を上書きするため、
+**酒耐性だけが一切伸びない。**
+
+疲労限界と隠しパラメータの固定は**生成時にのみ効く**。不変条件 1 が禁じているのは
+「生成後の変動」であり、生成そのものはここで行われる。以後は誰も触らない。
+
+### 6.2 空き枠
+
+`enabled: false` かつ `match: []` のひな形を 3 つ置いてある。
+それぞれ違う型の効果を書いてあるので、写して使える。
+
+| id | 型 |
+|---|---|
+| `slot_stat_bonus` | 初期値特化（`statBonus` ＋ `statMultiplier` でデバフ） |
+| `slot_cap_bonus` | 上限特化（`capMultiplier` ＋ 低い初期値 ＋ 高い耐久） |
+| `slot_special_event` | 専用イベント（`fixedScandalResist` ＋ `eventId`） |
+
+### 6.3 放火 — 離脱の結末を差し替える
+
+```json
+"events": [
+  { "id": "nishiki_burn_down", "gameOver": "arson", "title": "...", "body": ["..."] }
 ]
 ```
 
-| フィールド | 意味 |
+疲労限界を超えて離脱するとき、`EasterEggRules.ResolveBurnout()` が結末を決める。
+
+| 条件 | 結果 |
 |---|---|
-| `match` | 源氏名がこのいずれかに一致したら発動 |
-| `growthRateMultiplier` | `all` で全体、個別キーで上書き |
-| `fixedStaminaTier` | 疲労限界を固定（1〜5） |
-| `fixedScandalResist` | 隠しパラメータを固定 |
-| `eventId` | 専用イベント。未実装 ID は無視され、ゲームは止まらない |
+| エッグ無し、または `onDeparture: none` | 通常どおり飛ぶ／転生する |
+| `burnDownOn: any` | 飛ぶ・転生のどちらでも放火 |
+| `burnDownOn: runAway` | 飛ぶ側のときだけ放火。育て上げれば穏便に移籍する |
+| **卒業** | **常に放火しない** |
 
-「ニシキ」の効果は確定している（要件 4.5）。
-`alcohol: 0.0` が `all: 10.0` を上書きするため、酒耐性だけが一切伸びない。
+卒業を除外しているのは、放火が「燃え尽きて店を去る」瞬間の出来事だからである。
 
-**コードに名前を直接書かない。** 追加・調整は JSON だけで完結させる。
+**イベント定義が無くても結末は成立する。** `events` が空でも放火と強制終了は起きる。
+イベントを書く前に名前だけ決められる状態を保つのは、空き枠のための仕様である
+（不変条件 14 と同じ姿勢）。
+
+### 6.4 採用後は ID で解決する
+
+`Cast.EasterEggId` に採用時の判定結果を記録し、以後は**源氏名で引き直さない。**
+JSON の `match` を書き換えても、すでに在籍しているキャストの挙動は変わらない。
+
+### 6.5 ゲームオーバー
+
+```csharp
+enum GameOverReason { None, CashShortage, Arson }
+```
+
+どちらも**クリアランクを付けず、強くてニューゲームの初期資金ボーナスを与えない**
+（要件 5.3.1）。バッドエンドが周回の近道になってはいけない。
 
 ---
 
@@ -636,6 +708,12 @@ sealed class GameRandom {
 | T-18 | 疲労限界が Tier 1 に固定される |
 | T-19 | スキャンダル耐性が 0 で、判定が常に最悪側に寄る |
 | T-20 | `eventId` が未実装でもゲームが停止しない |
+| T-38 | 飛ぶ側・転生側のどちらで燃え尽きても放火する（`burnDownOn: any`） |
+| T-39 | **卒業では放火しない** |
+| T-40 | 普通のキャストは燃え尽きても放火しない |
+| T-41 | `burnDownOn: runAway` では転生側で放火しない |
+| T-42 | 採用後に `match` を書き換えても、在籍中のキャストの挙動は変わらない |
+| T-43 | 空き枠 3 つは `enabled: false` で、名前を入れても発動しない |
 
 ### 10.3 ボトル段階のテスト
 
@@ -744,6 +822,18 @@ T-15 を土台に、**AI 的な自動プレイで 480 ターンを 1000 回通�
 20. **飛ぶ側に予兆を出さない。** 予兆が転生にしか出ないことが、
     「売上を作るキャストほど目をかけ続ける必要がある」という圧力を作っている
 
+21. **バッドエンドに初期資金ボーナスを与えない。** 資金ショートも放火も同じ。
+    バッドエンドが周回の近道になると、丁寧に 10 年を回す動機が消える
+
+22. **卒業で放火させない。** 放火は燃え尽きて店を去る瞬間の出来事であり、
+    円満に辞めた相手が火を点けることはない
+
+23. **採用後のキャストを源氏名で引き直さない。** `Cast.EasterEggId` で解決する。
+    JSON を書き換えるたびに在籍中のキャストが化けると、セーブデータが壊れる
+
+24. **イースターエッグで `Cap` を生成後に書き換えない。** 適用は採用の瞬間のみ。
+    以後は不変条件 12 の対象に戻る
+
 ---
 
 ## 12. 実装順序
@@ -790,7 +880,7 @@ T-15 を土台に、**AI 的な自動プレイで 480 ターンを 1000 回通�
 | U-11 | クリアランク S〜C の判定基準と、強くてニューゲームの初期資金ボーナス量 | 段階 11 |
 | U-12 | 求人費のティア数と、各ティアの候補人数・質 | 段階 3 |
 | U-13 | 設備投資の項目・価格・効果量の一覧 | 段階 5 |
-| U-14 | 「ニシキ」専用イベントの実際の内容（現在は仮置き） | 段階 4 |
+| U-14 | 「ニシキ」放火イベントの本文（現在は仮置き）と、空き枠 3 つの中身 | 段階 4 |
 | U-15 | 信頼度・離脱の各定数（14.6.1）。特に `k_defectThreshold = 55` の妥当性 | 段階 5 |
 | U-16 | 転生したキャストが後に出戻る経路を設けるか（アイドル OB の再雇用と重複しないか） | 段階 11 |
 

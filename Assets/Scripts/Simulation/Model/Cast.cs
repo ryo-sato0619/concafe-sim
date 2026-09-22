@@ -13,15 +13,22 @@ namespace Concafe.Simulation.Model
         Graduated,
     }
 
-    /// <summary>パーツ合成で外見を決めるための組み合わせ。</summary>
+    /// <summary>
+    /// パーツ合成で外見を決めるための組み合わせ。
+    ///
+    /// 保持するのは変種の番号だけで、ファイル名は持たない。PNG が 1 枚も無い状態でも
+    /// ゲームが最後まで動く必要があり（不変条件 14）、番号からファイルへの対応と
+    /// 不足時の代用は描画側の Provider が引き受ける。
+    /// </summary>
     public sealed class Appearance
     {
-        public string Body { get; set; }
-        public string Dress { get; set; }
-        public string HairBack { get; set; }
-        public string HairFront { get; set; }
-        public string Eye { get; set; }
-        public string Accessory { get; set; }
+        public int Body { get; set; }
+        public int Dress { get; set; }
+        public int HairBack { get; set; }
+        public int HairFront { get; set; }
+        public int Eye { get; set; }
+        /// <summary>0 はアクセサリ無し。</summary>
+        public int Accessory { get; set; }
 
         public int SkinColor { get; set; }
         public int DressColor { get; set; }

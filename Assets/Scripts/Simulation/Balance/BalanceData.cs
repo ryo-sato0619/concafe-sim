@@ -32,6 +32,29 @@ namespace Concafe.Simulation.Balance
         public ScandalBalance Scandal { get; internal set; }
         public IReadOnlyList<RecruitTier> Recruit { get; internal set; }
         public CastGenBalance CastGen { get; internal set; }
+        public AppearanceBalance Appearance { get; internal set; }
+    }
+
+    /// <summary>
+    /// パーツ合成の構成。各レイヤの種類数と色数だけを持つ。
+    ///
+    /// ここに実ファイル名を書かない。PNG が 1 枚も無い状態でもゲームが動く必要があり
+    /// （不変条件 14）、ファイルの有無は描画側の Provider が吸収する。
+    /// </summary>
+    public sealed class AppearanceBalance
+    {
+        public int BodyVariants { get; internal set; }
+        public int DressVariants { get; internal set; }
+        public int HairBackVariants { get; internal set; }
+        public int HairFrontVariants { get; internal set; }
+        public int EyeVariants { get; internal set; }
+        /// <summary>0 は「アクセサリ無し」。</summary>
+        public int AccessoryVariants { get; internal set; }
+
+        public int SkinColors { get; internal set; }
+        public int DressColors { get; internal set; }
+        public int HairColors { get; internal set; }
+        public int EyeColors { get; internal set; }
     }
 
     public sealed class TimeBalance
