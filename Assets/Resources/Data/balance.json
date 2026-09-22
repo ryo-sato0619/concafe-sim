@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+
+  "time": {
+    "weeksPerYear": 48,
+    "weeksPerMonth": 4,
+    "yearsPerRun": 10
+  },
+
+  "shop": {
+    "initialCashYen": 1500000,
+    "weeklyFixedCostYen": 93000,
+    "initialCastSlots": 3,
+    "maxCastSlots": 12,
+    "slotsPerExpansion": 3,
+    "fixedCostPerExpansionYen": 30000
+  },
+
+  "manager": {
+    "apPerWeek": 10,
+    "trainCostAp": 3,
+    "trainBaseGain": 6.0,
+    "careCostAp": 2,
+    "careRecover": 4.0,
+    "trustPerCare": 4.0,
+    "interviewCostAp": 1,
+    "dailyWorkGain": 0.3
+  },
+
+  "visitors": {
+    "regularBase": 0.15,
+    "fameBase": 0.15,
+    "looksBonusMax": 0.2
+  },
+
+  "weather": {
+    "sunny":  { "fameFactor": 1.0,  "stormFactor": 1.0, "fatigueMul": 1.0 },
+    "cloudy": { "fameFactor": 0.8,  "stormFactor": 1.0, "fatigueMul": 1.0 },
+    "rain":   { "fameFactor": 0.25, "stormFactor": 1.0, "fatigueMul": 1.0 },
+    "storm":  { "fameFactor": 0.1,  "stormFactor": 0.1, "fatigueMul": 2.0 },
+    "snow":   { "fameFactor": 0.1,  "stormFactor": 0.1, "fatigueMul": 2.0 }
+  },
+
+  "orders": {
+    "talkFloor": 0.5,
+    "talkSpan": 1.0,
+    "chekiRate": 0.35,
+    "castDrinkRate": 0.25,
+    "bottleRate": 0.03
+  },
+
+  "items": {
+    "softDrink": { "costYen": 80,  "priceYen": 800 },
+    "alcohol":   { "costYen": 150, "priceYen": 1000 },
+    "chekiFilm": { "costYen": 120, "priceYen": 1600 },
+    "limited":   { "costYen": 300, "priceYen": 2000 }
+  },
+
+  "castDrink": {
+    "priceYen": 1600
+  },
+
+  "bottles": {
+    "tierPowerTalkWeight": 0.6,
+    "tierPowerAlcoholWeight": 0.4,
+    "alcoholic": [
+      { "priceYen": 12000,  "costYen": 3500,   "unlock": 0.00, "fatigueTier": 1 },
+      { "priceYen": 35000,  "costYen": 10000,  "unlock": 0.25, "fatigueTier": 2 },
+      { "priceYen": 70000,  "costYen": 19000,  "unlock": 0.45, "fatigueTier": 3 },
+      { "priceYen": 110000, "costYen": 30000,  "unlock": 0.60, "fatigueTier": 4 },
+      { "priceYen": 220000, "costYen": 60000,  "unlock": 0.75, "fatigueTier": 5 },
+      { "priceYen": 400000, "costYen": 105000, "unlock": 0.90, "fatigueTier": 6 }
+    ],
+    "nonAlcoholic": [
+      { "priceYen": 12000,  "costYen": 3500,  "unlock": 0.00, "fatigueTier": 0 },
+      { "priceYen": 35000,  "costYen": 10000, "unlock": 0.45, "fatigueTier": 0 },
+      { "priceYen": 220000, "costYen": 60000, "unlock": 0.95, "fatigueTier": 0 }
+    ]
+  },
+
+  "wage": {
+    "dailyBaseYen": 6000,
+    "dailyStatCoefYen": 40,
+    "commissionRate": 0.05
+  },
+
+  "fatigue": {
+    "base": 1.0,
+    "perGuest": 0.015,
+    "perDrink": 0.35,
+    "perBottleTier": 0.25,
+    "restRecover": 1.2,
+    "tierLimits": [14.0, 20.0, 27.0, 35.0, 45.0]
+  },
+
+  "trust": {
+    "relief": 0.35
+  },
+
+  "departure": {
+    "warnRatio": 0.75,
+    "defectThreshold": 55.0,
+    "antiSpread": 3.0
+  },
+
+  "stock": {
+    "lostRegular": 0.5
+  },
+
+  "scandal": {
+    "base": 0.02,
+    "perDrink": 0.01,
+    "moraleGuard": 0.5
+  },
+
+  "recruit": [
+    { "feeYen": 30000,  "candidates": 2, "capMean": 45.0, "capSpread": 12.0 },
+    { "feeYen": 80000,  "candidates": 3, "capMean": 60.0, "capSpread": 12.0 },
+    { "feeYen": 200000, "candidates": 3, "capMean": 75.0, "capSpread": 12.0 }
+  ],
+
+  "castGen": {
+    "minAge": 18,
+    "maxAge": 25,
+    "staminaTierWeights": [1.0, 2.0, 3.0, 2.0, 1.0],
+    "initialStatMean": 20.0,
+    "initialStatSpread": 8.0,
+    "scandalResistMean": 50.0,
+    "scandalResistSpread": 20.0,
+    "growthRateMean": 1.0,
+    "growthRateSpread": 0.25,
+    "statMax": 100.0
+  }
+}

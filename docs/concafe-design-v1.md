@@ -37,17 +37,18 @@ UI をどれだけ作り込んでも成立しない。分離は最優先事項�
 concafe-sim/
 ├─ Assets/
 │  ├─ Scripts/
-│  │  ├─ Simulation/          ← 純 C#。UnityEngine を参照しない
+│  │  ├─ Simulation/          ← 純 C#。noEngineReferences: true
+│  │  │  ├─ Concafe.Simulation.asmdef
+│  │  │  ├─ Json/             （最小の JSON リーダ）
+│  │  │  ├─ Balance/          （定数の型付けと妥当性検査）
 │  │  │  ├─ Model/            （Cast, Shop, Inventory, Weather, ...）
 │  │  │  ├─ Rules/            （来客・注文・疲労・成長・判定）
-│  │  │  ├─ Balance/          （定数の読み込みと型付け）
-│  │  │  └─ Random/           （GameRandom）
+│  │  │  └─ Random/           （GameRandom, RandomStreams）
 │  │  ├─ Presentation/        ← MonoBehaviour / UI
 │  │  ├─ Save/
 │  │  └─ Editor/
 │  │     ├─ SceneBuilder.cs   （シーンをコードから生成）
-│  │     ├─ BuildTool.cs      （batchmode ビルド）
-│  │     └─ BalanceValidator.cs（定数の妥当性検査）
+│  │     └─ BuildTool.cs      （batchmode ビルド）
 │  ├─ Resources/
 │  │  ├─ Data/
 │  │  │  ├─ balance.json      ← すべての数値定数
@@ -55,12 +56,25 @@ concafe-sim/
 │  │  │  ├─ careers.json      ← OB 進路 10 種
 │  │  │  └─ names.json        ← 源氏名の自動生成候補
 │  │  └─ Sprites/Parts/       ← ドット絵パーツ
+│  ├─ Tests/EditMode/         ← Unity は Assets 配下しかコンパイルしない
 │  ├─ Scenes/Main.unity       ← 1 シーンのみ。SceneBuilder が生成
 │  └─ Fonts/
-├─ Tests/EditMode/
 ├─ tools/
 └─ docs/
 ```
+
+### 1.3 Simulation 層の隔離はコンパイラが強制する
+
+`Concafe.Simulation.asmdef` に `"noEngineReferences": true` を置いている。
+Simulation 層のどこかに `using UnityEngine;` を書くと、
+**レビューを待たずにビルドが落ちる**（`error CS0246`）。
+
+不変条件 9 は口約束ではなく、機械が守る。`Debug.Log` を 1 行足した時点で
+CI が赤くなるため、気づかないうちに依存が入り込むことがない。
+
+JsonUtility も使えないため、`Simulation/Json/` に最小の JSON リーダを持つ。
+balance.json が扱う範囲（オブジェクト・配列・数値・文字列・真偽・null）だけの
+実装で、規格の完全な実装ではない。
 
 シーンは `Main.unity` **1 つだけ**とする。画面遷移は UI の差し替えで行う。
 `three-months-of-spring` と同じ方式。シーンファイルの手編集による
@@ -121,12 +135,14 @@ sealed class Cast {
 }
 
 struct Stats {
-    public float Regulars;   // 集客
-    public float Fame;       // 知名度
-    public float Talk;       // トーク
-    public float Alcohol;    // 酒耐性
-    public float Looks;      // ルックス
-    public float Morale;     // モラル
+    public double Regulars;  // 集客
+    public double Fame;      // 知名度
+    public double Talk;      // トーク
+    public double Alcohol;   // 酒耐性
+    public double Looks;     // ルックス
+    public double Morale;    // モラル
+
+    public double this[StatKind kind] { get; set; }   // 成長処理用
 }
 ```
 
@@ -579,7 +595,17 @@ sealed class GameRandom {
 
 ## 10. テスト
 
-`Tests/EditMode/` に置く。Simulation 層が純 C# であるため、EditMode で完結する。
+`Assets/Tests/EditMode/` に置く。Simulation 層が純 C# であるため、EditMode で完結する。
+
+実行:
+
+```
+"C:\Program Files\Unity\Hub\Editor\6000.6.2f1\Editor\Unity.exe" -batchmode -nographics ^
+  -projectPath . -runTests -testPlatform EditMode -testResults build\test-results.xml
+```
+
+`tools/Run-Tests.ps1` が同じことをする。`-quit` は付けない
+（テストの完了前に落ちることがある）。
 
 ### 10.1 必須テスト項目
 
