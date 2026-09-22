@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 7;
+        public const int SupportedSchemaVersion = 10;
 
         public static BalanceData Load(string json)
         {
@@ -71,11 +71,22 @@ namespace Concafe.Simulation.Balance
             d.Shop = new ShopBalance
             {
                 InitialCashYen = Yen(shop, "shop.initialCashYen", problems, "initialCashYen"),
-                WeeklyFixedCostYen = Yen(shop, "shop.weeklyFixedCostYen", problems, "weeklyFixedCostYen"),
                 InitialCastSlots = Int(shop, "shop.initialCastSlots", problems, "initialCastSlots"),
                 MaxCastSlots = Int(shop, "shop.maxCastSlots", problems, "maxCastSlots"),
                 SlotsPerExpansion = Int(shop, "shop.slotsPerExpansion", problems, "slotsPerExpansion"),
-                FixedCostPerExpansionYen = Yen(shop, "shop.fixedCostPerExpansionYen", problems, "fixedCostPerExpansionYen"),
+                InitialCastNames = StringList(shop["initialCastNames"],
+                                              "shop.initialCastNames", problems),
+                InitialCastRecruitTier = Int(shop, "shop.initialCastRecruitTier", problems, "initialCastRecruitTier"),
+                InitialCastStatBonus = Num(shop, "shop.initialCastStatBonus", problems, "initialCastStatBonus"),
+            };
+
+            var cost = Section(root, "cost", problems);
+            d.Cost = new CostBalance
+            {
+                WeeklyRentYen = Yen(cost, "cost.weeklyRentYen", problems, "weeklyRentYen"),
+                RentPerExpansionYen = Yen(cost, "cost.rentPerExpansionYen", problems, "rentPerExpansionYen"),
+                WeeklyManagerPayYen = Yen(cost, "cost.weeklyManagerPayYen", problems, "weeklyManagerPayYen"),
+                VariableCostRate = Num(cost, "cost.variableCostRate", problems, "variableCostRate"),
             };
 
             var mgr = Section(root, "manager", problems);
@@ -364,11 +375,24 @@ namespace Concafe.Simulation.Balance
 
             // 店舗
             if (d.Shop.InitialCashYen <= 0) problems.Add("shop.initialCashYen が 0 以下");
-            if (d.Shop.WeeklyFixedCostYen < 0) problems.Add("shop.weeklyFixedCostYen が負");
             if (d.Shop.InitialCastSlots <= 0) problems.Add("shop.initialCastSlots が 0 以下");
             if (d.Shop.MaxCastSlots < d.Shop.InitialCastSlots)
                 problems.Add("shop.maxCastSlots が initialCastSlots より小さい");
             if (d.Shop.SlotsPerExpansion <= 0) problems.Add("shop.slotsPerExpansion が 0 以下");
+            if (d.Shop.InitialCastNames.Count > d.Shop.InitialCastSlots)
+                problems.Add("shop.initialCastNames が初期の枠より多い");
+            if (d.Shop.InitialCastRecruitTier < 0 || d.Shop.InitialCastRecruitTier >= d.Recruit.Count)
+                problems.Add($"shop.initialCastRecruitTier が 0〜{d.Recruit.Count - 1} の外");
+            if (d.Shop.InitialCastStatBonus < 0)
+                problems.Add("shop.initialCastStatBonus が負");
+
+            // 経費
+            if (d.Cost.WeeklyRentYen < 0) problems.Add("cost.weeklyRentYen が負");
+            if (d.Cost.RentPerExpansionYen < 0) problems.Add("cost.rentPerExpansionYen が負");
+            if (d.Cost.WeeklyManagerPayYen < 0) problems.Add("cost.weeklyManagerPayYen が負");
+            Rate(d.Cost.VariableCostRate, "cost.variableCostRate", problems);
+            if (d.Cost.VariableCostRate <= 0)
+                problems.Add("cost.variableCostRate が 0 以下。売上が伸びた分がそのまま利益になり、終盤が緩くなる");
 
             // 店長 AP
             if (d.Manager.ApPerWeek <= 0) problems.Add("manager.apPerWeek が 0 以下");
@@ -732,6 +756,26 @@ namespace Concafe.Simulation.Balance
                 return 0;
             }
             return (long)v;
+        }
+
+        static IReadOnlyList<string> StringList(JsonValue node, string path, List<string> problems)
+        {
+            var list = new List<string>();
+            if (node.Type != JsonValue.Kind.Array)
+            {
+                problems.Add($"{path} が無いか配列ではない");
+                return list;
+            }
+
+            int i = 0;
+            foreach (var v in node.Items())
+            {
+                string s = v.AsString();
+                if (string.IsNullOrWhiteSpace(s)) problems.Add($"{path}[{i}] が空の文字列");
+                else list.Add(s.Trim());
+                i++;
+            }
+            return list;
         }
 
         static IReadOnlyList<double> NumList(JsonValue node, string path, List<string> problems)

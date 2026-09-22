@@ -76,17 +76,26 @@ namespace Concafe.Simulation.Model
         }
 
         /// <summary>
-        /// 枠を広げると週次固定費も上がる。広げること自体がリスクになり、
-        /// 「広げたが埋められない」という失敗が成立する（設計書 14.1）。
+        /// 家賃・光熱費・通信費。枠を広げると上がる。
+        /// 広げること自体がリスクになり、「広げたが埋められない」という
+        /// 失敗が成立する（設計書 14.1）。
         /// </summary>
-        public long WeeklyFixedCostYen(BalanceData balance)
+        public long WeeklyRentYen(BalanceData balance)
         {
             int expansions = (CastSlots - balance.Shop.InitialCastSlots)
                              / balance.Shop.SlotsPerExpansion;
             if (expansions < 0) expansions = 0;
-            return balance.Shop.WeeklyFixedCostYen
-                 + expansions * balance.Shop.FixedCostPerExpansionYen;
+            return balance.Cost.WeeklyRentYen
+                 + expansions * balance.Cost.RentPerExpansionYen;
         }
+
+        /// <summary>
+        /// 決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。
+        /// これがあることで、規模が大きくなっても利益率が保たれる。
+        /// </summary>
+        public static long VariableCostYen(long revenueYen, BalanceData balance) =>
+            (long)System.Math.Round(revenueYen * balance.Cost.VariableCostRate,
+                                    System.MidpointRounding.AwayFromZero);
 
         public Cast FindCast(string id)
         {

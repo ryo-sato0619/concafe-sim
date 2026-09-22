@@ -13,6 +13,43 @@ namespace Concafe.Simulation.Rules
     /// </summary>
     public static class GameFlow
     {
+        /// <summary>
+        /// 新規開始。前任者から引き継ぐキャストを在籍させた状態で始める。
+        ///
+        /// 空の店から始めると、売上が無いまま家賃と店長報酬だけが出ていき、
+        /// 求人・採用・育成が回り出す前に資金が尽きる。
+        /// 企画書の「赤字寸前のコンカフェ店長となり」は、
+        /// すでに動いている店を引き継ぐという意味である。
+        /// </summary>
+        public static GameState NewGame(
+            Concafe.Simulation.Balance.BalanceData balance,
+            Concafe.Simulation.Balance.EasterEggSet eggs, ulong seed)
+        {
+            var state = new GameState(balance, eggs, seed);
+
+            double bonus = balance.Shop.InitialCastStatBonus;
+
+            foreach (var name in balance.Shop.InitialCastNames)
+            {
+                var applicant = CastFactory.GenerateApplicant(
+                    state.Rng.CastGen, balance,
+                    balance.Shop.InitialCastRecruitTier, state.TakeCastSerial());
+
+                // 前任者がある程度育てている。上限は超えない。
+                foreach (var kind in Stats.AllKinds)
+                {
+                    double v = applicant.InitialStats[kind] + bonus;
+                    double cap = applicant.Cap[kind];
+                    applicant.InitialStats[kind] = v > cap ? cap : v;
+                }
+
+                state.Shop.Roster.Add(
+                    CastFactory.Hire(applicant, name, balance, state.Eggs, 0));
+            }
+
+            return state;
+        }
+
         public static void BeginWeek(GameState state)
         {
             if (state.IsOver) return;
@@ -185,11 +222,13 @@ namespace Concafe.Simulation.Rules
                 result.WageYen += s.WageYen;
             }
 
-            result.FixedCostYen = state.Shop.WeeklyFixedCostYen(balance);
+            result.RentYen = state.Shop.WeeklyRentYen(balance);
+            result.ManagerPayYen = balance.Cost.WeeklyManagerPayYen;
+            result.VariableCostYen = Shop.VariableCostYen(result.RevenueYen, balance);
 
             state.Shop.CashYen += result.RevenueYen;
             state.Shop.CashYen -= result.WageYen;
-            state.Shop.CashYen -= result.FixedCostYen;
+            state.Shop.CashYen -= result.OverheadYen;
 
             foreach (var c in state.Shop.Roster) result.CastStats.Add(stats[c.Id]);
         }

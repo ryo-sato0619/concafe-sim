@@ -37,6 +37,11 @@ namespace Concafe.Simulation.Model
         /// </summary>
         public long WeekPurchaseYen { get; internal set; }
 
+        /// <summary>
+        /// 新規開始。前任者から引き継ぐキャストもここで用意する。
+        /// 引き継ぎのキャストを作るのは呼び出し側（Rules 層）なので、
+        /// ここではロスターを空のまま返す。<see cref="Rules.GameFlow.NewGame"/> を使うこと。
+        /// </summary>
         public GameState(BalanceData balance, EasterEggSet eggs, ulong seed)
         {
             Balance = balance;

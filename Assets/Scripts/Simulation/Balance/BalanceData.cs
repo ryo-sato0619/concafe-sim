@@ -17,6 +17,7 @@ namespace Concafe.Simulation.Balance
 
         public TimeBalance Time { get; internal set; }
         public ShopBalance Shop { get; internal set; }
+        public CostBalance Cost { get; internal set; }
         public ManagerBalance Manager { get; internal set; }
         public VisitorBalance Visitors { get; internal set; }
         public IReadOnlyDictionary<string, WeatherBalance> Weather { get; internal set; }
@@ -73,11 +74,42 @@ namespace Concafe.Simulation.Balance
     public sealed class ShopBalance
     {
         public long InitialCashYen { get; internal set; }
-        public long WeeklyFixedCostYen { get; internal set; }
         public int InitialCastSlots { get; internal set; }
         public int MaxCastSlots { get; internal set; }
         public int SlotsPerExpansion { get; internal set; }
-        public long FixedCostPerExpansionYen { get; internal set; }
+
+        /// <summary>
+        /// 前任者から引き継ぐキャストの源氏名。
+        /// 空の店から始めると、売上が無いまま経費だけが出て開幕で詰む。
+        /// </summary>
+        public IReadOnlyList<string> InitialCastNames { get; internal set; }
+
+        /// <summary>引き継ぐキャストを生成する求人ティア。前任者がある程度育てている。</summary>
+        public int InitialCastRecruitTier { get; internal set; }
+        /// <summary>引き継ぐキャストの初期値への加算。</summary>
+        public double InitialCastStatBonus { get; internal set; }
+    }
+
+    /// <summary>
+    /// 売上原価と給料以外の経費。
+    ///
+    /// 固定と変動を分けているのが要点である。全部を固定にすると、
+    /// 売上が伸びたぶんがそのまま利益になって終盤が緩くなる。
+    /// 変動費があることで**規模が大きくなっても利益率が保たれ、
+    /// 終盤まで緊張が残る。**
+    /// </summary>
+    public sealed class CostBalance
+    {
+        /// <summary>家賃・光熱費・通信費。</summary>
+        public long WeeklyRentYen { get; internal set; }
+        /// <summary>キャスト枠の拡張 1 回あたりの家賃上昇。</summary>
+        public long RentPerExpansionYen { get; internal set; }
+
+        /// <summary>店長自身の報酬。店長も食べていかなければならない。</summary>
+        public long WeeklyManagerPayYen { get; internal set; }
+
+        /// <summary>決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。</summary>
+        public double VariableCostRate { get; internal set; }
     }
 
     public sealed class ManagerBalance

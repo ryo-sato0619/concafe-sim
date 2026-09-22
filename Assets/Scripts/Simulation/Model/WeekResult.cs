@@ -78,12 +78,22 @@ namespace Concafe.Simulation.Model
 
         public long RevenueYen;
         public long WageYen;
-        public long FixedCostYen;
+
+        /// <summary>家賃・光熱費・通信費。</summary>
+        public long RentYen;
+        /// <summary>店長自身の報酬。</summary>
+        public long ManagerPayYen;
+        /// <summary>決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。</summary>
+        public long VariableCostYen;
+
         /// <summary>この週に発注で支払った額。決算の前に現金から引かれている。</summary>
         public long PurchaseYen;
 
-        /// <summary>売上 −（給料 ＋ 仕入れ費 ＋ 固定費）。</summary>
-        public long ProfitYen => RevenueYen - (WageYen + FixedCostYen + PurchaseYen);
+        /// <summary>給料以外の経費の合計。</summary>
+        public long OverheadYen => RentYen + ManagerPayYen + VariableCostYen;
+
+        /// <summary>売上 −（給料 ＋ 仕入れ費 ＋ 諸経費）。</summary>
+        public long ProfitYen => RevenueYen - (WageYen + PurchaseYen + OverheadYen);
 
         public long CashBeforeYen;
         public long CashAfterYen;

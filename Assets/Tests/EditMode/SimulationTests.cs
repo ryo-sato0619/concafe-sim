@@ -1121,11 +1121,13 @@ namespace Concafe.Tests
             var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 4, balance));
 
             Assert.Greater(r.PurchaseYen, 0L, "仕入れ費が記録されていない");
+            Assert.Greater(r.VariableCostYen, 0L, "変動費が記録されていない");
+            Assert.AreEqual(balance.Cost.WeeklyManagerPayYen, r.ManagerPayYen);
             Assert.AreEqual(10_000_000L - r.PurchaseYen, cashAfterOrder,
                 "発注時に現金が引かれていない");
-            Assert.AreEqual(cashAfterOrder + r.RevenueYen - r.WageYen - r.FixedCostYen,
+            Assert.AreEqual(cashAfterOrder + r.RevenueYen - r.WageYen - r.OverheadYen,
                 r.CashAfterYen, "決算の計算が合わない");
-            Assert.AreEqual(r.RevenueYen - (r.WageYen + r.FixedCostYen + r.PurchaseYen),
+            Assert.AreEqual(r.RevenueYen - (r.WageYen + r.PurchaseYen + r.OverheadYen),
                 r.ProfitYen);
         }
 
@@ -1138,7 +1140,7 @@ namespace Concafe.Tests
 
             var r = RunOneWeek(s, Weather.Sunny, workDays: 0);
 
-            Assert.AreEqual(93_000L + 30_000L, r.FixedCostYen);
+            Assert.AreEqual(70_000L + 25_000L, r.RentYen);
         }
 
         // ---- 天候の生成 ------------------------------------------------------

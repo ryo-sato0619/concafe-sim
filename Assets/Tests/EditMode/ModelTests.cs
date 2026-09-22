@@ -380,13 +380,13 @@ namespace Concafe.Tests
         public void 枠を広げると週次固定費が上がる()
         {
             var shop = Shop.NewGame(balance);
-            Assert.AreEqual(93_000L, shop.WeeklyFixedCostYen(balance));
+            Assert.AreEqual(70_000L, shop.WeeklyRentYen(balance));
 
             shop.CastSlots = 6;
-            Assert.AreEqual(123_000L, shop.WeeklyFixedCostYen(balance));
+            Assert.AreEqual(95_000L, shop.WeeklyRentYen(balance));
 
             shop.CastSlots = 12;
-            Assert.AreEqual(183_000L, shop.WeeklyFixedCostYen(balance));
+            Assert.AreEqual(145_000L, shop.WeeklyRentYen(balance));
         }
 
         [Test]

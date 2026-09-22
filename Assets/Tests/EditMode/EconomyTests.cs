@@ -30,7 +30,7 @@ namespace Concafe.Tests
             public long RevenueYen;
             public long CogsYen;
             public long WageYen;
-            public long FixedCostYen;
+            public long OverheadYen;
             public long ProfitYen;
             public double AverageSpendYen;
         }
@@ -93,7 +93,8 @@ namespace Concafe.Tests
                 foreach (var c in s.Shop.Roster) c.Fatigue = 0;
             }
 
-            long fixedCost = s.Shop.WeeklyFixedCostYen(balance);
+            long overhead = s.Shop.WeeklyRentYen(balance) + balance.Cost.WeeklyManagerPayYen
+                          + Shop.VariableCostYen(rev / weeks, balance);
 
             var m = new Measurement
             {
@@ -101,10 +102,10 @@ namespace Concafe.Tests
                 RevenueYen = rev / weeks,
                 CogsYen = cogs / weeks,
                 WageYen = wage / weeks,
-                FixedCostYen = fixedCost,
+                OverheadYen = overhead,
                 AverageSpendYen = rev / (double)visits,
             };
-            m.ProfitYen = m.RevenueYen - m.CogsYen - m.WageYen - m.FixedCostYen;
+            m.ProfitYen = m.RevenueYen - m.CogsYen - m.WageYen - m.OverheadYen;
 
             Report("キャスト" + castCount + "人", m);
             return m;
@@ -118,7 +119,7 @@ namespace Concafe.Tests
             TestContext.WriteLine($"  売上/週       : {m.RevenueYen:N0}");
             TestContext.WriteLine($"  仕入れ原価/週 : {m.CogsYen:N0}");
             TestContext.WriteLine($"  給料/週       : {m.WageYen:N0}");
-            TestContext.WriteLine($"  固定費/週     : {m.FixedCostYen:N0}");
+            TestContext.WriteLine($"  諸経費/週     : {m.OverheadYen:N0}");
             TestContext.WriteLine($"  純利益/週     : {m.ProfitYen:N0}");
         }
 
@@ -209,16 +210,16 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void 序盤から黒字になっている_U17_要再調整()
+        public void 序盤はギリギリ黒字になった_U17_解決()
         {
-            // チャージ制の導入で、赤字 40,601 円/週 が黒字 約192,000 円/週 に反転した。
-            // 「赤字寸前のコンカフェ」からは大きく外れているため、
-            // U-17 でどの係数を締めるかを決める必要がある。
+            // U-17 の決着。家賃以外の経費（店長報酬 ＋ 変動費 17%）を入れて、
+            // 当初承認された「ギリギリ黒字 約16,000 円/週」に着地した。
+            // ただしこれは**全員フル出勤**の場合である（週 4 日だと赤字）。
             var m = Measure(3, EveryDay);
 
             Assert.Greater(m.ProfitYen, 0L);
-            Assert.That(m.ProfitYen, Is.EqualTo(192_000).Within(20_000),
-                "収支が動いた。U-17 で締めたなら、この期待値と設計書 14.8 を更新すること");
+            Assert.That(m.ProfitYen, Is.EqualTo(16_700).Within(6_000),
+                "収支が動いた。経費を触ったなら、この期待値と設計書 14.8 を更新すること");
         }
 
         [Test]
@@ -229,21 +230,22 @@ namespace Concafe.Tests
 
             Assert.Less(four.ProfitYen, seven.ProfitYen,
                 "出勤を減らすと固定費を売上で割れなくなる");
-            Assert.That(four.ProfitYen, Is.EqualTo(67_000).Within(15_000));
+            Assert.That(four.ProfitYen, Is.EqualTo(-46_000).Within(12_000));
         }
 
         [Test]
-        public void 粗利が固定費を大きく上回っている_U17_要再調整()
+        public void 粗利が諸経費とほぼ釣り合っている()
         {
             var m = Measure(3, EveryDay);
 
             long grossMargin = m.RevenueYen - m.CogsYen - m.WageYen;
 
-            TestContext.WriteLine($"  粗利（固定費前）: {grossMargin:N0}");
-            TestContext.WriteLine($"  固定費との差    : {grossMargin - m.FixedCostYen:N0}");
+            TestContext.WriteLine($"  粗利（諸経費前）: {grossMargin:N0}");
+            TestContext.WriteLine($"  諸経費との差    : {grossMargin - m.OverheadYen:N0}");
 
-            Assert.Greater(grossMargin, m.FixedCostYen,
-                "固定費を賄えなくなった。U-17 で締めたならこの期待値を更新すること");
+            Assert.Greater(grossMargin, m.OverheadYen, "諸経費を賄えていない");
+            Assert.Less(grossMargin, m.OverheadYen * 1.1,
+                "粗利が諸経費を 10% 以上上回っている。緩すぎる");
         }
 
         [Test]

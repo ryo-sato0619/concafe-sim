@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 7,
+  "schemaVersion": 10,
 
   "time": {
     "weeksPerYear": 48,
@@ -9,11 +9,28 @@
 
   "shop": {
     "initialCashYen": 1500000,
-    "weeklyFixedCostYen": 93000,
     "initialCastSlots": 3,
     "maxCastSlots": 12,
     "slotsPerExpansion": 3,
-    "fixedCostPerExpansionYen": 30000
+
+    "_initialCast": "前任者から引き継ぐキャスト。空の店から始めると、売上が無いまま経費だけが出て開幕で詰む",
+    "initialCastNames": ["ミク", "サクラ"],
+    "_initialCastQuality": "引き継ぐキャストは前任者がある程度育てている。recruit の何番目のティアで生成し、初期値に何を加えるか",
+    "initialCastRecruitTier": 1,
+    "initialCastStatBonus": 15
+  },
+
+  "cost": {
+    "_rent": "家賃・光熱費・通信費。週あたりの固定額（月28万相当）",
+    "weeklyRentYen": 70000,
+    "_expansion": "キャスト枠を slotsPerExpansion 増やすごとに家賃がこれだけ上がる",
+    "rentPerExpansionYen": 25000,
+
+    "_manager": "店長自身の報酬。店長も食べていかなければならない（月24万相当）",
+    "weeklyManagerPayYen": 60000,
+
+    "_variable": "決済手数料・消耗品費・広告宣伝費・雑費。売上に比例する。固定を薄く変動を厚くしてあるのは、キャストが欠けたときに経費も一緒に下がって立て直せるようにするため",
+    "variableCostRate": 0.26
   },
 
   "manager": {

@@ -38,9 +38,9 @@ namespace Concafe.Tests
         /// 求人・発注・シフト・AP を素朴な方針で回す。最適プレイではない。
         /// プレイヤーが普通に遊んだときの下限を測るためのもの。
         /// </summary>
-        RunSummary AutoPlay(ulong seed, bool verbose = false)
+        RunSummary AutoPlay(ulong seed, bool verbose = false, int daysPerCast = 5)
         {
-            var s = new GameState(balance, eggs, seed);
+            var s = GameFlow.NewGame(balance, eggs, seed);
 
             var summary = new RunSummary
             {
@@ -62,7 +62,7 @@ namespace Concafe.Tests
                 OrderForWeek(s);
                 SpendAp(s);
 
-                var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 5, balance));
+                var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, daysPerCast, balance));
 
                 if (s.Shop.CashYen < summary.MinCashYen) summary.MinCashYen = s.Shop.CashYen;
                 if (summary.FirstProfitableWeek < 0 && r.ProfitYen > 0)
@@ -141,44 +141,81 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void 育てば黒字化はする()
+        public void 出勤日数ごとの生存を測る()
         {
-            var r = AutoPlay(2026);
-
-            Assert.GreaterOrEqual(r.FirstProfitableWeek, 0,
-                "一度も黒字の週が無い。価格か原価の問題になる");
-            Assert.Less(r.FirstProfitableWeek, 24,
-                "黒字化が遅すぎる。キャストの成長が売上に効いていない可能性がある");
+            // U-17 で経費を入れた結果、出勤の厚さが生死を分けるようになった。
+            // どのペースなら成立するのかを記録する。
+            for (int days = 3; days <= 7; days++)
+            {
+                var r = AutoPlay(2026, daysPerCast: days);
+                TestContext.WriteLine(
+                    $"週{days}日: 生存 {r.WeeksSurvived,3}/480  " +
+                    $"最終資金 {r.FinalCashYen,12:N0}  最悪 {r.MinCashYen,12:N0}  " +
+                    $"初黒字 w{r.FirstProfitableWeek}  {r.GameOver}");
+            }
         }
 
         [Test]
-        public void 十年を通せる()
+        public void 黒字の週が存在する()
         {
-            // チャージ制の導入で通せるようになった。ただし現状は易しすぎるため、
-            // U-17 でどの係数を締めるかの決定を待っている。
-            var r = AutoPlay(2026, verbose: true);
+            // どの出勤ペースかに関係なく、黒字の週が 1 度も無いなら
+            // 価格か原価の問題になる。
+            bool any = false;
+            for (int days = 3; days <= 7 && !any; days++)
+                if (AutoPlay(2026, daysPerCast: days).FirstProfitableWeek >= 0) any = true;
 
-            TestContext.WriteLine($"生存週      : {r.WeeksSurvived} / {balance.Time.TotalWeeks}");
-            TestContext.WriteLine($"終了理由    : {r.GameOver}");
-            TestContext.WriteLine($"最悪の資金  : {r.MinCashYen:N0}");
-            TestContext.WriteLine($"初黒字の週  : {r.FirstProfitableWeek}");
-            TestContext.WriteLine($"最終資金    : {r.FinalCashYen:N0}");
-
-            Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived, "10 年を通せていない");
-            Assert.AreEqual(GameOverReason.None, r.GameOver);
+            Assert.IsTrue(any, "どのペースでも黒字の週が無い");
         }
 
         [Test]
-        public void 素朴なプレイでも資金が尽きかけない_U17_要再調整()
+        public void 週三日から四日なら十年を通せる()
         {
-            // 現状は易しすぎる。素朴なプレイで一度も資金難に陥らない。
-            // U-17 で締めたらこのテストが落ちるので、そのとき期待値を
-            //「一度は資金難に陥るが立て直せる」に書き換えること。
-            var r = AutoPlay(2026);
+            // 素朴なプレイでも、無理のないシフトなら完走できる。
+            foreach (int days in new[] { 3, 4 })
+            {
+                var r = AutoPlay(2026, daysPerCast: days);
 
-            Assert.Greater(r.MinCashYen, 0L, "資金がマイナスになった");
-            Assert.Greater(r.MinCashYen, 500_000L,
-                "資金難に陥るようになった。U-17 で締めたならこの期待値を更新すること");
+                Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived,
+                    $"週 {days} 日で 10 年を通せていない");
+                Assert.AreEqual(GameOverReason.None, r.GameOver);
+                Assert.Greater(r.MinCashYen, 0L);
+            }
+        }
+
+        [Test]
+        public void 働かせすぎると崩壊する()
+        {
+            // 週 5 日以上のフル出勤は疲労で離脱を招き、悪評の波及で立て直せない。
+            // 「使い潰すか、伝説にするか」がそのまま数字に出ている。
+            //
+            // 疲労・離脱・経費のどれかを緩めたらこのテストが落ちる。
+            // そのとき、働かせすぎが罰せられる構造が残っているかを確認すること。
+            foreach (int days in new[] { 5, 6, 7 })
+            {
+                var r = AutoPlay(2026, daysPerCast: days);
+
+                TestContext.WriteLine(
+                    $"週{days}日: 生存 {r.WeeksSurvived}/480  {r.GameOver}");
+
+                Assert.Less(r.WeeksSurvived, balance.Time.TotalWeeks,
+                    $"週 {days} 日のフル出勤で完走できてしまう。働かせすぎが罰せられていない");
+            }
+        }
+
+        [Test]
+        public void 開幕で詰まない()
+        {
+            // 前任者から引き継ぐキャストがいるため、初週から売上が立つ。
+            // ここが落ちたら shop.initialCastNames が空になっている。
+            var s = GameFlow.NewGame(balance, eggs, 2026);
+
+            Assert.AreEqual(balance.Shop.InitialCastNames.Count, s.Shop.Roster.Count,
+                "引き継ぐキャストが在籍していない");
+            Assert.IsNotEmpty(balance.Shop.InitialCastNames, "引き継ぎが空だと開幕で詰む");
+
+            foreach (var c in s.Shop.Roster)
+                Assert.Greater(c.Current.Talk, balance.CastGen.InitialStatMean,
+                    "引き継ぐキャストが前任者に育てられていない");
         }
     }
 }

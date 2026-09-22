@@ -13,7 +13,7 @@ namespace Concafe.Tests
             var b = TestBalance.Load();
 
             Assert.AreEqual(BalanceLoader.SupportedSchemaVersion, b.SchemaVersion);
-            Assert.AreEqual(7, b.SchemaVersion);
+            Assert.AreEqual(10, b.SchemaVersion);
             Assert.AreEqual(48, b.Time.WeeksPerYear);
             Assert.AreEqual(10, b.Time.YearsPerRun);
             Assert.AreEqual(480, b.Time.TotalWeeks);
@@ -26,7 +26,9 @@ namespace Concafe.Tests
             var b = TestBalance.Load();
 
             Assert.AreEqual(1_500_000L, b.Shop.InitialCashYen);
-            Assert.AreEqual(93_000L, b.Shop.WeeklyFixedCostYen);
+            Assert.AreEqual(70_000L, b.Cost.WeeklyRentYen);
+            Assert.AreEqual(60_000L, b.Cost.WeeklyManagerPayYen);
+            Assert.AreEqual(0.26, b.Cost.VariableCostRate, 1e-12);
             Assert.AreEqual(3, b.Shop.InitialCastSlots);
             Assert.AreEqual(12, b.Shop.MaxCastSlots);
 
@@ -206,8 +208,8 @@ namespace Concafe.Tests
         public void 金額が小数なら弾く()
         {
             string json = Mutate(TestBalance.RawJson(),
-                @"""weeklyFixedCostYen"": 93000",
-                @"""weeklyFixedCostYen"": 93000.5");
+                @"""weeklyRentYen"": 70000",
+                @"""weeklyRentYen"": 70000.5");
 
             AssertRejects(json, "金額は整数の円で扱う");
         }
@@ -235,7 +237,7 @@ namespace Concafe.Tests
         public void スキーマ版が違えば弾く()
         {
             string json = Mutate(TestBalance.RawJson(),
-                @"""schemaVersion"": 7",
+                @"""schemaVersion"": 10",
                 @"""schemaVersion"": 99");
 
             AssertRejects(json, "schemaVersion");
