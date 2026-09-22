@@ -1,0 +1,63 @@
+# ------------------------------------------------------------
+#  Unity
+# ------------------------------------------------------------
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Unity が自動生成するソリューション / プロジェクトファイル
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ビルド成果物
+*.apk
+*.aab
+*.unitypackage
+*.app
+ExportedObj/
+
+# Android (Gradle / CMake) の中間生成物。ビルドのたびに作り直される
+/.utmp/
+/.gradle/
+/.cxx/
+.consulo/
+crashlytics-build.properties
+sysinfo.txt
+
+# Rider / Visual Studio / VS Code
+/.idea/
+/.vs/
+/.vscode/
+
+# ------------------------------------------------------------
+#  OS
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------
+#  このプロジェクト固有
+# ------------------------------------------------------------
+# 原案メモから抽出した作業用テキスト。実名などを含むためコミットしない。
+/_scratch/
+*.one
