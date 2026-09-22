@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
 
   "time": {
     "weeksPerYear": 48,
@@ -39,6 +39,18 @@
     "rain":   { "fameFactor": 0.25, "stormFactor": 1.0, "fatigueMul": 1.0 },
     "storm":  { "fameFactor": 0.1,  "stormFactor": 0.1, "fatigueMul": 2.0 },
     "snow":   { "fameFactor": 0.1,  "stormFactor": 0.1, "fatigueMul": 2.0 }
+  },
+
+  "weatherGen": {
+    "_seasons": "月 0〜11。冬 = 12,1,2月 / 春 = 3,4,5月 / 夏 = 6,7,8月 / 秋 = 9,10,11月",
+    "seasons": {
+      "spring": { "sunny": 45, "cloudy": 30, "rain": 22, "storm": 2, "snow": 1 },
+      "summer": { "sunny": 50, "cloudy": 25, "rain": 20, "storm": 5, "snow": 0 },
+      "autumn": { "sunny": 42, "cloudy": 30, "rain": 22, "storm": 6, "snow": 0 },
+      "winter": { "sunny": 40, "cloudy": 32, "rain": 18, "storm": 2, "snow": 8 }
+    },
+    "_forecastAccuracy": "週頭に見せる予報が当たる確率。先の日ほど外れる（設計書 5.2）",
+    "forecastAccuracy": [1.0, 0.95, 0.88, 0.80, 0.72, 0.65, 0.58]
   },
 
   "orders": {

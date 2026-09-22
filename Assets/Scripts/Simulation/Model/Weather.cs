@@ -43,5 +43,54 @@ namespace Concafe.Simulation.Model
         /// 客がほぼ来ず、疲労が倍増する天候。臨時休業を検討する対象。
         /// </summary>
         public static bool IsSevere(Weather w) => w == Weather.Storm || w == Weather.Snow;
+
+        public static bool TryParse(string name, out Weather w)
+        {
+            switch (name)
+            {
+                case Sunny: w = Weather.Sunny; return true;
+                case Cloudy: w = Weather.Cloudy; return true;
+                case Rain: w = Weather.Rain; return true;
+                case Storm: w = Weather.Storm; return true;
+                case Snow: w = Weather.Snow; return true;
+                default: w = Weather.Sunny; return false;
+            }
+        }
+    }
+
+    public enum Season { Spring, Summer, Autumn, Winter }
+
+    public static class SeasonNames
+    {
+        public const string Spring = "spring";
+        public const string Summer = "summer";
+        public const string Autumn = "autumn";
+        public const string Winter = "winter";
+
+        public static readonly IReadOnlyList<string> All =
+            new[] { Spring, Summer, Autumn, Winter };
+
+        public static string Of(Season s)
+        {
+            switch (s)
+            {
+                case Season.Spring: return Spring;
+                case Season.Summer: return Summer;
+                case Season.Autumn: return Autumn;
+                default: return Winter;
+            }
+        }
+
+        /// <summary>月は 0 起点（0 = 1 月）。12・1・2 月を冬とする。</summary>
+        public static Season Of(int month)
+        {
+            switch (month)
+            {
+                case 2: case 3: case 4: return Season.Spring;   // 3〜5 月
+                case 5: case 6: case 7: return Season.Summer;   // 6〜8 月
+                case 8: case 9: case 10: return Season.Autumn;  // 9〜11 月
+                default: return Season.Winter;                  // 12・1・2 月
+            }
+        }
     }
 }

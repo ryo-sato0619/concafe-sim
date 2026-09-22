@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 2;
+        public const int SupportedSchemaVersion = 3;
 
         public static BalanceData Load(string json)
         {
@@ -111,6 +111,31 @@ namespace Concafe.Simulation.Balance
                 };
             }
             d.Weather = weather;
+
+            var wgen = Section(root, "weatherGen", problems);
+            var seasonsNode = wgen["seasons"];
+            var seasons = new Dictionary<string, IReadOnlyDictionary<string, double>>(StringComparer.Ordinal);
+            if (seasonsNode.Type != JsonValue.Kind.Object)
+            {
+                problems.Add("weatherGen.seasons が無いかオブジェクトではない");
+            }
+            else
+            {
+                foreach (var season in seasonsNode.Members())
+                {
+                    var weights = new Dictionary<string, double>(StringComparer.Ordinal);
+                    foreach (var kv in season.Value.Members())
+                        weights[kv.Key] = Num(season.Value,
+                            $"weatherGen.seasons.{season.Key}.{kv.Key}", problems, kv.Key);
+                    seasons[season.Key] = weights;
+                }
+            }
+            d.WeatherGen = new WeatherGenBalance
+            {
+                Seasons = seasons,
+                ForecastAccuracy = NumList(wgen["forecastAccuracy"],
+                                           "weatherGen.forecastAccuracy", problems),
+            };
 
             var ord = Section(root, "orders", problems);
             d.Orders = new OrderBalance
@@ -336,6 +361,47 @@ namespace Concafe.Simulation.Balance
             // 「集客は天候に影響されない」という要件が静かに破れる。
             if (d.Weather.TryGetValue(WeatherNames.Rain, out var rain) && rain.StormFactor < 1.0)
                 problems.Add("weather.rain.stormFactor が 1 未満。雨で固定客が減ってしまう（設計書 4.1）");
+
+            // 天候の抽選
+            foreach (var season in SeasonNames.All)
+            {
+                if (!d.WeatherGen.Seasons.TryGetValue(season, out var weights))
+                {
+                    problems.Add($"weatherGen.seasons.{season} が無い");
+                    continue;
+                }
+
+                double sum = 0;
+                foreach (var name in WeatherNames.All)
+                {
+                    if (!weights.TryGetValue(name, out double w))
+                    {
+                        problems.Add($"weatherGen.seasons.{season}.{name} が無い");
+                        continue;
+                    }
+                    if (w < 0) problems.Add($"weatherGen.seasons.{season}.{name} が負");
+                    sum += w;
+                }
+                if (sum <= 0)
+                    problems.Add($"weatherGen.seasons.{season} の重みの合計が 0。天候を抽選できない");
+            }
+
+            var acc = d.WeatherGen.ForecastAccuracy;
+            if (acc.Count != 7)
+            {
+                problems.Add($"weatherGen.forecastAccuracy の数が {acc.Count}。7 日分必要");
+            }
+            else
+            {
+                for (int i = 0; i < acc.Count; i++)
+                {
+                    if (acc[i] < 0 || acc[i] > 1)
+                        problems.Add($"weatherGen.forecastAccuracy[{i}] が 0〜1 の外");
+                    if (i > 0 && acc[i] > acc[i - 1])
+                        problems.Add($"weatherGen.forecastAccuracy[{i}] が前日より高い。" +
+                                     "先の日ほど当たりにくい必要がある");
+                }
+            }
 
             // 注文
             Rate(d.Orders.ChekiRate, "orders.chekiRate", problems);

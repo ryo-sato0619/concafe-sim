@@ -20,6 +20,7 @@ namespace Concafe.Simulation.Balance
         public ManagerBalance Manager { get; internal set; }
         public VisitorBalance Visitors { get; internal set; }
         public IReadOnlyDictionary<string, WeatherBalance> Weather { get; internal set; }
+        public WeatherGenBalance WeatherGen { get; internal set; }
         public OrderBalance Orders { get; internal set; }
         public ItemBalance Items { get; internal set; }
         public long CastDrinkPriceYen { get; internal set; }
@@ -108,6 +109,20 @@ namespace Concafe.Simulation.Balance
         public double FameFactor { get; internal set; }
         public double StormFactor { get; internal set; }
         public double FatigueMul { get; internal set; }
+    }
+
+    /// <summary>天候の抽選。季節ごとに重みが変わる。</summary>
+    public sealed class WeatherGenBalance
+    {
+        /// <summary>季節名 → 天候名 → 重み。</summary>
+        public IReadOnlyDictionary<string, IReadOnlyDictionary<string, double>> Seasons
+        { get; internal set; }
+
+        /// <summary>
+        /// 週頭に見せる予報が当たる確率。添字 0 が月曜。
+        /// 先の日ほど外れる。予報を確定情報にしないための仕掛け（設計書 5.2）。
+        /// </summary>
+        public IReadOnlyList<double> ForecastAccuracy { get; internal set; }
     }
 
     public sealed class OrderBalance
