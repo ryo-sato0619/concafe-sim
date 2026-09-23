@@ -155,7 +155,48 @@ namespace Concafe.Simulation.Balance
                 if (egg.OnDeparture == DepartureOverride.None && e.Has("burnDownOn"))
                     problems.Add($"{path}.burnDownOn があるのに onDeparture が burnDown でない");
 
+                egg.WeeklyEvents = ReadWeeklyEvents(e["weeklyEvents"], path, problems);
+
                 list.Add(egg);
+            }
+
+            return list;
+        }
+
+        static List<WeeklyEggEvent> ReadWeeklyEvents(
+            JsonValue node, string path, List<string> problems)
+        {
+            var list = new List<WeeklyEggEvent>();
+            if (node.IsNull) return list;
+
+            if (node.Type != JsonValue.Kind.Array)
+            {
+                problems.Add($"{path}.weeklyEvents が配列ではない");
+                return list;
+            }
+
+            int i = 0;
+            foreach (var w in node.Items())
+            {
+                string p = $"{path}.weeklyEvents[{i}]";
+                i++;
+
+                string id = w["eventId"].AsString();
+                if (string.IsNullOrEmpty(id)) { problems.Add($"{p}.eventId が無い"); continue; }
+
+                double chance = w["chance"].AsDouble(-1);
+                if (chance <= 0 || chance > 1)
+                {
+                    problems.Add($"{p}.chance が 0〜1 の外。0 なら一度も起きない");
+                    continue;
+                }
+
+                list.Add(new WeeklyEggEvent
+                {
+                    EventId = id,
+                    Chance = chance,
+                    RequiresAlcoholServed = w["requiresAlcoholServed"].AsBool(false),
+                });
             }
 
             return list;
@@ -279,13 +320,41 @@ namespace Concafe.Simulation.Balance
                     if (s != null) body.Add(s);
                 }
 
-                map[id] = new EasterEggEvent
+                var ev = new EasterEggEvent
                 {
                     Id = id,
                     Title = e["title"].AsString(string.Empty),
                     Body = body,
                     GameOver = ReadGameOver(e["gameOver"], path, problems),
                 };
+
+                var effect = e["effect"];
+                if (!effect.IsNull)
+                {
+                    string kind = effect["kind"].AsString("none");
+                    switch (kind)
+                    {
+                        case "none": ev.Effect = EggEventEffect.None; break;
+
+                        case "absence":
+                            ev.Effect = EggEventEffect.Absence;
+                            ev.Days = (int)effect["days"].AsDouble(0);
+                            if (ev.Days <= 0) problems.Add($"{path}.effect.days が 0 以下");
+                            break;
+
+                        case "shopMorale":
+                            ev.Effect = EggEventEffect.ShopMorale;
+                            ev.Value = effect["value"].AsDouble(0);
+                            if (ev.Value <= 0) problems.Add($"{path}.effect.value が 0 以下");
+                            break;
+
+                        default:
+                            problems.Add($"{path}.effect.kind \"{kind}\" は知らない効果");
+                            break;
+                    }
+                }
+
+                map[id] = ev;
             }
 
             return map;

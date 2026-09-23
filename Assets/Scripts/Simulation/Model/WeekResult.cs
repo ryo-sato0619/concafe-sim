@@ -27,6 +27,8 @@ namespace Concafe.Simulation.Model
         public int WorkDays;
         /// <summary>出勤した延べ時間。</summary>
         public int WorkHours;
+        /// <summary>専用イベントで欠勤した日数。</summary>
+        public int AbsentDays;
         public int Guests;
         /// <summary>接客した延べ時間。疲労の源。</summary>
         public int GuestHours;
@@ -70,6 +72,20 @@ namespace Concafe.Simulation.Model
         public long LifetimeSalesYen;
         /// <summary>失われた固定客。卒業でも固定客は残らない。</summary>
         public double LostRegulars;
+    }
+
+    /// <summary>週頭に起きた専用イベント。</summary>
+    public sealed class EggEventRecord
+    {
+        public string CastId;
+        public string StageName;
+        public string EventId;
+        public string Title;
+        public IReadOnlyList<string> Body;
+        /// <summary>欠勤日数（該当する場合）。</summary>
+        public int AbsentDays;
+        /// <summary>店舗全体のモラル低下（該当する場合）。</summary>
+        public double ShopMoraleLost;
     }
 
     /// <summary>OB の差し入れやイベントで、その週に起きたこと。</summary>
@@ -148,6 +164,8 @@ namespace Concafe.Simulation.Model
         public List<ScandalRecord> Scandals = new List<ScandalRecord>();
         public List<GraduationRecord> Graduations = new List<GraduationRecord>();
         public AlumniGiftRecord Gifts = new AlumniGiftRecord();
+        /// <summary>週頭に起きた専用イベント。</summary>
+        public List<EggEventRecord> EggEvents = new List<EggEventRecord>();
 
         public GameOverReason GameOver = GameOverReason.None;
         public bool IsGameOver => GameOver != GameOverReason.None;

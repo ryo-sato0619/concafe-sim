@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Concafe.Simulation.Balance;
 using Concafe.Simulation.Model;
@@ -68,15 +69,23 @@ namespace Concafe.Simulation.Rules
         /// 「育てれば育てるほど楽になる」という単調な構造にならない。
         /// </summary>
         public static long WeeklyYen(
-            Cast cast, Shift shift, long backableSalesYen, BalanceData balance, int currentWeek)
+            Cast cast, Shift shift, IReadOnlyDictionary<string, HashSet<int>> absent,
+            long backableSalesYen, BalanceData balance, int currentWeek)
         {
             long hourly = HourlyYen(cast, balance, currentWeek);
+
+            absent.TryGetValue(cast.Id, out var absentDays);
 
             double paidHours = 0;
             for (int d = 0; d < Shift.DaysPerWeek; d++)
             {
                 var slot = shift.Get(cast.Id, d);
-                if (slot.IsWorking) paidHours += balance.Business.PaidHours(slot.StartHour, slot.EndHour);
+                if (!slot.IsWorking) continue;
+
+                // 欠勤した日は給料が出ない。
+                if (absentDays != null && absentDays.Contains(d)) continue;
+
+                paidHours += balance.Business.PaidHours(slot.StartHour, slot.EndHour);
             }
 
             long basePay = (long)Math.Round(hourly * paidHours, MidpointRounding.AwayFromZero);

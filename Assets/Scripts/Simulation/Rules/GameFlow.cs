@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Concafe.Simulation.Rng;
+using Concafe.Simulation.Balance;
 using Concafe.Simulation.Model;
 
 namespace Concafe.Simulation.Rules
@@ -74,6 +75,78 @@ namespace Concafe.Simulation.Rules
                 state.Rng.Weather, balance, season, state.Weather);
 
             state.PendingGifts = ReceiveAlumniGifts(state);
+            state.PendingEggEvents = FireWeeklyEggEvents(state);
+        }
+
+        /// <summary>
+        /// 在籍中のイースターエッグ持ちに、毎週の専用イベントを判定する。
+        ///
+        /// 週頭に起こすのは、プレイヤーがシフトを組む前に結果を見られるようにするため。
+        /// 「今週ニシキは 2 日欠勤」と分かってからシフトを埋められる。
+        /// </summary>
+        static List<EggEventRecord> FireWeeklyEggEvents(GameState state)
+        {
+            var records = new List<EggEventRecord>();
+            var rng = state.Rng.Events;
+
+            foreach (var cast in state.Shop.Roster)
+            {
+                cast.AbsentDays = 0;
+
+                var egg = EasterEggRules.FindEgg(cast, state.Eggs);
+                if (egg == null) continue;
+
+                foreach (var weekly in egg.WeeklyEvents)
+                {
+                    if (weekly.RequiresAlcoholServed && cast.LastWeekAlcoholDrinks <= 0) continue;
+                    if (!rng.Chance(weekly.Chance)) continue;
+
+                    var ev = state.Eggs.FindEvent(weekly.EventId);
+                    // 未実装の ID でもゲームは止まらない（不変条件 14 と同じ姿勢）。
+                    if (ev == null) continue;
+
+                    var record = new EggEventRecord
+                    {
+                        CastId = cast.Id,
+                        StageName = cast.StageName,
+                        EventId = ev.Id,
+                        Title = ev.Title,
+                        Body = ev.Body,
+                    };
+
+                    switch (ev.Effect)
+                    {
+                        case EggEventEffect.Absence:
+                            // 同じ週に複数起きたら重ねる。
+                            cast.AbsentDays += ev.Days;
+                            record.AbsentDays = ev.Days;
+                            break;
+
+                        case EggEventEffect.ShopMorale:
+                            record.ShopMoraleLost = LowerShopMorale(state, ev.Value);
+                            break;
+                    }
+
+                    records.Add(record);
+                }
+            }
+
+            return records;
+        }
+
+        /// <summary>店舗にいる全員のモラルを下げる。0 を下回らせない。</summary>
+        static double LowerShopMorale(GameState state, double amount)
+        {
+            double total = 0;
+            foreach (var c in state.Shop.Roster)
+            {
+                double before = c.Current.Morale;
+                double after = before - amount;
+                if (after < 0) after = 0;
+                c.Current.Morale = after;
+                total += before - after;
+            }
+            return total;
         }
 
         /// <summary>
@@ -139,10 +212,16 @@ namespace Concafe.Simulation.Rules
                 return result;
             }
 
-            var stats = BuildStats(state, shift);
+            result.EggEvents = state.PendingEggEvents;
 
-            RunBusinessWeek(state, shift, stats, result);
-            Settle(state, shift, stats, result);
+            // 欠勤ぶんをシフトから抜く。プレイヤーが組んだ表はそのままにして、
+            // 実際に立つ日だけを別に持つ。
+            var absent = BuildAbsences(state, shift);
+
+            var stats = BuildStats(state, shift, absent);
+
+            RunBusinessWeek(state, shift, absent, stats, result);
+            Settle(state, shift, absent, stats, result);
 
             // 決算で資金が尽きたらそこで終わる。離脱判定まで進めない。
             if (state.Shop.CashYen < 0)
@@ -171,24 +250,65 @@ namespace Concafe.Simulation.Rules
             return result;
         }
 
-        static Dictionary<string, CastWeekStats> BuildStats(GameState state, Shift shift)
+        /// <summary>
+        /// 欠勤する曜日を決める。シフトに入っている日のうち、早い順に抜く。
+        /// </summary>
+        static Dictionary<string, HashSet<int>> BuildAbsences(GameState state, Shift shift)
+        {
+            var absent = new Dictionary<string, HashSet<int>>();
+
+            foreach (var c in state.Shop.Roster)
+            {
+                if (c.AbsentDays <= 0) continue;
+
+                var days = new HashSet<int>();
+                int remaining = c.AbsentDays;
+
+                for (int d = 0; d < Shift.DaysPerWeek && remaining > 0; d++)
+                {
+                    if (!shift.IsWorking(c.Id, d)) continue;
+                    days.Add(d);
+                    remaining--;
+                }
+
+                if (days.Count > 0) absent[c.Id] = days;
+            }
+
+            return absent;
+        }
+
+        static bool IsAbsent(Dictionary<string, HashSet<int>> absent, string castId, int day) =>
+            absent.TryGetValue(castId, out var days) && days.Contains(day);
+
+        static Dictionary<string, CastWeekStats> BuildStats(
+            GameState state, Shift shift, Dictionary<string, HashSet<int>> absent)
         {
             var stats = new Dictionary<string, CastWeekStats>();
             foreach (var c in state.Shop.Roster)
             {
+                int days = 0, hours = 0;
+                for (int d = 0; d < Shift.DaysPerWeek; d++)
+                {
+                    var slot = shift.Get(c.Id, d);
+                    if (!slot.IsWorking || IsAbsent(absent, c.Id, d)) continue;
+                    days++;
+                    hours += slot.Hours;
+                }
+
                 stats[c.Id] = new CastWeekStats
                 {
                     CastId = c.Id,
                     StageName = c.StageName,
-                    WorkDays = shift.WorkDays(c.Id),
-                    WorkHours = shift.WorkHours(c.Id),
+                    WorkDays = days,
+                    WorkHours = hours,
+                    AbsentDays = absent.TryGetValue(c.Id, out var a) ? a.Count : 0,
                 };
             }
             return stats;
         }
 
         static void RunBusinessWeek(
-            GameState state, Shift shift,
+            GameState state, Shift shift, Dictionary<string, HashSet<int>> absent,
             Dictionary<string, CastWeekStats> stats, WeekResult result)
         {
             var balance = state.Balance;
@@ -210,7 +330,7 @@ namespace Concafe.Simulation.Rules
                 foreach (var c in state.Shop.Roster)
                 {
                     var slot = shift.Get(c.Id, day);
-                    if (slot.IsWorking)
+                    if (slot.IsWorking && !IsAbsent(absent, c.Id, day))
                         working.Add(new VisitorRules.OnDuty { Cast = c, Slot = slot });
                 }
 
@@ -252,9 +372,10 @@ namespace Concafe.Simulation.Rules
                     GrowthRules.ApplyWorkDay(a.Cast, a.Slot.Hours, balance);
                 }
 
-                // 休業日のキャストは回復する。
+                // 休業日と欠勤日のキャストは回復する。
                 foreach (var c in state.Shop.Roster)
-                    if (!shift.IsWorking(c.Id, day)) FatigueRules.ApplyRest(c, balance);
+                    if (!shift.IsWorking(c.Id, day) || IsAbsent(absent, c.Id, day))
+                        FatigueRules.ApplyRest(c, balance);
 
                 result.Days[day] = dayResult;
                 result.RevenueYen += dayResult.RevenueYen;
@@ -265,7 +386,7 @@ namespace Concafe.Simulation.Rules
         }
 
         static void Settle(
-            GameState state, Shift shift,
+            GameState state, Shift shift, Dictionary<string, HashSet<int>> absent,
             Dictionary<string, CastWeekStats> stats, WeekResult result)
         {
             var balance = state.Balance;
@@ -276,8 +397,14 @@ namespace Concafe.Simulation.Rules
                 var s = stats[c.Id];
                 s.HourlyYen = WageRules.HourlyYen(c, balance, week);
                 s.BackYen = WageRules.BackYen(s.BackableSalesYen, balance);
-                s.WageYen = WageRules.WeeklyYen(c, shift, s.BackableSalesYen, balance, week);
+
+                // 欠勤した日は給料が出ない。実際に立った時間で払う。
+                s.WageYen = WageRules.WeeklyYen(
+                    c, shift, absent, s.BackableSalesYen, balance, week);
                 result.WageYen += s.WageYen;
+
+                // 酒由来のイベントの条件に使う。
+                c.LastWeekAlcoholDrinks = s.AlcoholDrinksServed;
             }
 
             result.Gifts = state.PendingGifts;

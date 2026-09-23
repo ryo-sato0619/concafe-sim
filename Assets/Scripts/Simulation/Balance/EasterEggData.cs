@@ -42,6 +42,11 @@ namespace Concafe.Simulation.Balance
         public BurnDownCondition BurnDownOn { get; internal set; }
 
         public string EventId { get; internal set; }
+
+        /// <summary>在籍中に毎週判定される専用イベント。</summary>
+        public IReadOnlyList<WeeklyEggEvent> WeeklyEvents { get; internal set; }
+            = new WeeklyEggEvent[0];
+
         public string Note { get; internal set; }
 
         public bool HasFixedStaminaTier => FixedStaminaTier > 0;
@@ -90,6 +95,17 @@ namespace Concafe.Simulation.Balance
         }
     }
 
+    /// <summary>専用イベントの効果。</summary>
+    public enum EggEventEffect
+    {
+        /// <summary>テキストだけ。</summary>
+        None,
+        /// <summary>その週、指定日数だけ出勤できなくなる。</summary>
+        Absence,
+        /// <summary>店舗にいる全員のモラルを下げる。</summary>
+        ShopMorale,
+    }
+
     /// <summary>専用イベント。未実装の ID を参照してもゲームは止まらない（不変条件 14 と同じ姿勢）。</summary>
     public sealed class EasterEggEvent
     {
@@ -97,6 +113,24 @@ namespace Concafe.Simulation.Balance
         public string Title { get; internal set; }
         public IReadOnlyList<string> Body { get; internal set; }
         public GameOverReason GameOver { get; internal set; }
+
+        public EggEventEffect Effect { get; internal set; }
+        /// <summary>Absence のときの欠勤日数。</summary>
+        public int Days { get; internal set; }
+        /// <summary>ShopMorale のときの低下量。</summary>
+        public double Value { get; internal set; }
+    }
+
+    /// <summary>
+    /// 在籍中に毎週判定される専用イベントの参照。
+    /// 週頭に起きるので、プレイヤーはシフトを組む前に結果を見られる。
+    /// </summary>
+    public sealed class WeeklyEggEvent
+    {
+        public string EventId { get; internal set; }
+        public double Chance { get; internal set; }
+        /// <summary>前の週に酒を口にしていないと起きない（酒由来のイベント用）。</summary>
+        public bool RequiresAlcoholServed { get; internal set; }
     }
 
     public sealed class EasterEggSet

@@ -81,6 +81,17 @@ namespace Concafe.Simulation.Model
 
         public long LifetimeSalesYen { get; set; }
 
+        /// <summary>
+        /// 今週、出勤できない日数。週頭の専用イベントで決まる。
+        /// シフトに入れていても、この日数ぶんは休みになる。
+        /// </summary>
+        public int AbsentDays { get; set; }
+
+        /// <summary>
+        /// 先週、自分が口にした酒の杯数。酒由来のイベントの条件に使う。
+        /// </summary>
+        public int LastWeekAlcoholDrinks { get; set; }
+
         /// <summary>該当なしは null。</summary>
         public string EasterEggId { get; set; }
 

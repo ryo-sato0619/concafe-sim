@@ -32,6 +32,13 @@
       "burnDownOn": "any",
       "eventId": "nishiki_burn_down",
 
+      "_weeklyEvents": "在籍中に毎週判定される専用イベント。週頭に起きるので、シフトを組む前に結果が分かる",
+      "weeklyEvents": [
+        { "eventId": "nishiki_slump", "chance": 0.12 },
+        { "eventId": "nishiki_sns", "chance": 0.08 },
+        { "eventId": "nishiki_allergy", "chance": 0.10, "requiresAlcoholServed": true }
+      ],
+
       "note": "爆速で完成するが、まず確実に飛ぶか炎上する高リスク個体。通常プレイの上位互換にはしない。"
     },
 
@@ -79,7 +86,32 @@
     }
   ],
 
+  "_events": "effect.kind は none / absence（days 日ぶん欠勤）/ shopMorale（店舗全員のモラルを value 下げる）",
   "events": [
+    {
+      "id": "nishiki_slump",
+      "title": "働けない",
+      "effect": { "kind": "absence", "days": 2 },
+      "body": [
+        "メンタルが落ちて仕事ができない状態だ"
+      ]
+    },
+    {
+      "id": "nishiki_sns",
+      "title": "燃える投稿",
+      "effect": { "kind": "shopMorale", "value": 5.0 },
+      "body": [
+        "ニシキのSNSでの投稿をきっかけに店舗全体のモラルが下がった"
+      ]
+    },
+    {
+      "id": "nishiki_allergy",
+      "title": "許容量",
+      "effect": { "kind": "absence", "days": 2 },
+      "body": [
+        "ニシキは許容量を超えたアルコールを摂取してしまいアレルギー反応がでて2日間出勤できなくなった"
+      ]
+    },
     {
       "id": "nishiki_burn_down",
       "title": "炎の中に消える",

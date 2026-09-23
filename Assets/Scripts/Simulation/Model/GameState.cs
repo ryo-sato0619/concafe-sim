@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Concafe.Simulation.Balance;
 using Concafe.Simulation.Rng;
 
@@ -46,6 +47,12 @@ namespace Concafe.Simulation.Model
 
         /// <summary>今週の OB 差し入れ。週頭に決まり、決算のレポートに載る。</summary>
         public AlumniGiftRecord PendingGifts { get; internal set; } = new AlumniGiftRecord();
+
+        /// <summary>
+        /// 今週、週頭に起きた専用イベント。シフトを組む前に参照できる。
+        /// </summary>
+        public List<EggEventRecord> PendingEggEvents { get; internal set; }
+            = new List<EggEventRecord>();
 
         /// <summary>
         /// 新規開始。前任者から引き継ぐキャストもここで用意する。
