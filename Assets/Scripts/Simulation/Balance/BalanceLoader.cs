@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 13;
+        public const int SupportedSchemaVersion = 14;
 
         public static BalanceData Load(string json)
         {
@@ -102,6 +102,7 @@ namespace Concafe.Simulation.Balance
                 InterviewCostAp = Int(mgr, "manager.interviewCostAp", problems, "interviewCostAp"),
                 DailyWorkGain = Num(mgr, "manager.dailyWorkGain", problems, "dailyWorkGain"),
                 MoraleWorkGainRatio = Num(mgr, "manager.moraleWorkGainRatio", problems, "moraleWorkGainRatio"),
+                RegularsWorkGainRatio = Num(mgr, "manager.regularsWorkGainRatio", problems, "regularsWorkGainRatio"),
             };
 
             var vis = Section(root, "visitors", problems);
@@ -170,6 +171,7 @@ namespace Concafe.Simulation.Balance
                 LateNightFromHour = Int(biz, "business.lateNightFromHour", problems, "lateNightFromHour"),
                 LateNightMultiplier = Num(biz, "business.lateNightMultiplier", problems, "lateNightMultiplier"),
                 MinShiftHours = Int(biz, "business.minShiftHours", problems, "minShiftHours"),
+                HourWeights = NumList(biz["hourWeights"], "business.hourWeights", problems),
                 HolidayDays = holidays,
             };
 
@@ -191,6 +193,7 @@ namespace Concafe.Simulation.Balance
                 ChekiRate = Num(ord, "orders.chekiRate", problems, "chekiRate"),
                 CastDrinkRate = Num(ord, "orders.castDrinkRate", problems, "castDrinkRate"),
                 BottleRate = Num(ord, "orders.bottleRate", problems, "bottleRate"),
+                LimitedRate = Num(ord, "orders.limitedRate", problems, "limitedRate"),
             };
 
             var items = Section(root, "items", problems);
@@ -522,6 +525,16 @@ namespace Concafe.Simulation.Balance
             if (biz2.HolidayDays.Count >= 7)
                 problems.Add("business.holidayDays が全曜日。平日が無い");
 
+            // 時間帯ごとの重み（U-20）。
+            // 休日の開店から閉店までの各時刻ぶん、ちょうど必要になる。
+            int slots = biz2.CloseHour - biz2.HolidayOpenHour;
+            if (biz2.HourWeights.Count != slots)
+                problems.Add($"business.hourWeights の数が {biz2.HourWeights.Count}。" +
+                             $"休日の開店から閉店まで（{slots} 時間）と合わせること");
+            for (int i = 0; i < biz2.HourWeights.Count; i++)
+                if (biz2.HourWeights[i] <= 0)
+                    problems.Add($"business.hourWeights[{i}] が 0 以下。客が来ない時間帯は作らない");
+
             // 来店とチャージ
             if (d.Visit.ChargePerHourYen < 0) problems.Add("visit.chargePerHourYen が負");
             if (d.Visit.MaxStayHours < 1) problems.Add("visit.maxStayHours が 1 未満");
@@ -536,6 +549,7 @@ namespace Concafe.Simulation.Balance
             Rate(d.Orders.ChekiRate, "orders.chekiRate", problems);
             Rate(d.Orders.CastDrinkRate, "orders.castDrinkRate", problems);
             Rate(d.Orders.BottleRate, "orders.bottleRate", problems);
+            Rate(d.Orders.LimitedRate, "orders.limitedRate", problems);
             if (d.Orders.TalkFloor < 0) problems.Add("orders.talkFloor が負");
             if (d.Orders.TalkSpan < 0) problems.Add("orders.talkSpan が負");
 

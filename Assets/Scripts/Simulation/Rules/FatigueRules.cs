@@ -104,6 +104,10 @@ namespace Concafe.Simulation.Rules
             Apply(cast, StatKind.Talk, g);
             Apply(cast, StatKind.Fame, g);
             Apply(cast, StatKind.Morale, g * balance.Manager.MoraleWorkGainRatio);
+
+            // U-19: 既定では 0。集客は特訓でしか伸びない。
+            double regulars = balance.Manager.RegularsWorkGainRatio;
+            if (regulars > 0) Apply(cast, StatKind.Regulars, g * regulars);
         }
     }
 }

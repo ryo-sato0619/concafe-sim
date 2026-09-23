@@ -346,7 +346,8 @@ namespace Concafe.Simulation.Rules
                     continue;
                 }
 
-                var assignments = VisitorRules.Assign(working, balance, weather, state.Alumni, rng);
+                var assignments = VisitorRules.Assign(
+                    working, balance, weather, state.Alumni, rng, day);
 
                 foreach (var a in assignments)
                 {

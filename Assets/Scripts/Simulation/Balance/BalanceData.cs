@@ -187,6 +187,14 @@ namespace Concafe.Simulation.Balance
         public double DailyWorkGain { get; internal set; }
         /// <summary>出勤によるモラルの自然成長。トーク・知名度に対する比率。</summary>
         public double MoraleWorkGainRatio { get; internal set; }
+
+        /// <summary>
+        /// 出勤による集客の自然成長（U-19）。0 なら集客は特訓でしか伸びない。
+        ///
+        /// 集客を特訓に限ることは、店長 AP に価値を与える主要な柱である。
+        /// ここを 0 から動かすと AP の逼迫が緩み、終盤の判断が薄くなる。
+        /// </summary>
+        public double RegularsWorkGainRatio { get; internal set; }
     }
 
     public sealed class VisitorBalance
@@ -246,6 +254,15 @@ namespace Concafe.Simulation.Balance
         /// <summary>1 回のシフトの最短時間。</summary>
         public int MinShiftHours { get; internal set; }
 
+        /// <summary>
+        /// 時間帯ごとの来客の重み。添字は<b>休日の開店時刻からの経過時間</b>で、
+        /// 平日は <c>weekdayOpenHour - holidayOpenHour</c> だけずれた位置から使う。
+        ///
+        /// これがあると、シフトは「何時間入れるか」だけでなく
+        /// 「どこに置くか」の選択になる（U-20）。
+        /// </summary>
+        public IReadOnlyList<double> HourWeights { get; internal set; }
+
         /// <summary>休日の曜日番号。0 = 月曜、6 = 日曜。</summary>
         public IReadOnlyList<int> HolidayDays { get; internal set; }
 
@@ -262,6 +279,43 @@ namespace Concafe.Simulation.Balance
 
         /// <summary>基準となる営業時間。来客係数はこの長さで校正されている。</summary>
         public int BaselineOpenHours => CloseHour - WeekdayOpenHour;
+
+        /// <summary>時刻 hour の来客の重み。営業時間外は 0。</summary>
+        public double HourWeight(int hour)
+        {
+            int i = hour - HolidayOpenHour;
+            return i >= 0 && i < HourWeights.Count ? HourWeights[i] : 0;
+        }
+
+        /// <summary>時刻 start〜end の重みの合計。</summary>
+        public double WeightIn(int startHour, int endHour)
+        {
+            double sum = 0;
+            for (int h = startHour; h < endHour; h++) sum += HourWeight(h);
+            return sum;
+        }
+
+        /// <summary>その曜日の全営業時間ぶんの重みの合計。</summary>
+        public double FullDayWeight(int dayOfWeek) => WeightIn(OpenHour(dayOfWeek), CloseHour);
+
+        /// <summary>
+        /// 来客数に掛ける係数。平日フル出勤で 1.0 になる。
+        ///
+        /// 重みを「その日の合計」で割ってから営業時間の比を掛けるので、
+        /// **フル出勤の来客数は重みを入れる前と変わらない**（平日 18 人/日・
+        /// 休日 24 人/日の校正が保たれる）。変わるのは部分シフトの取り分だけで、
+        /// 混む時間帯に置いたほうが客が付く（U-20）。
+        /// </summary>
+        public double VisitorHoursFactor(int startHour, int endHour, int dayOfWeek)
+        {
+            if (endHour <= startHour) return 0;
+
+            double dayWeight = FullDayWeight(dayOfWeek);
+            if (dayWeight <= 0) return 0;
+
+            return WeightIn(startHour, endHour) / dayWeight
+                 * (OpenHours(dayOfWeek) / (double)BaselineOpenHours);
+        }
 
         /// <summary>
         /// 時刻 start〜end のうち、深夜割増の対象になる時間数。
@@ -321,6 +375,8 @@ namespace Concafe.Simulation.Balance
         public double ChekiRate { get; internal set; }
         public double CastDrinkRate { get; internal set; }
         public double BottleRate { get; internal set; }
+        /// <summary>期間限定商品。在庫があるときだけ注文が起きる（U-18）。</summary>
+        public double LimitedRate { get; internal set; }
     }
 
     public sealed class ItemPrice

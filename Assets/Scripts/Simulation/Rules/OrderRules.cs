@@ -65,6 +65,14 @@ namespace Concafe.Simulation.Rules
             balance.Orders.BottleRate * TalkFactor(cast, balance);
 
         /// <summary>
+        /// 期間限定商品の注文率（U-18）。
+        ///
+        /// ルックス倍率を掛けないのはボトルと同じ理由（不変条件 2）。
+        /// </summary>
+        public static double LimitedRate(Cast cast, BalanceData balance) =>
+            balance.Orders.LimitedRate * TalkFactor(cast, balance);
+
+        /// <summary>
         /// そのキャストが扱うボトルの一覧。
         /// 不変条件 3: 未成年はノンアルコールのみ。
         /// </summary>
@@ -142,6 +150,7 @@ namespace Concafe.Simulation.Rules
             double chekiRate = ChekiRate(cast, balance, alumni);
             double drinkRate = CastDrinkRate(cast, balance, alumni);
             double bottleRate = BottleRate(cast, balance);
+            double limitedRate = LimitedRate(cast, balance);
             double extend = ExtendChance(cast, balance);
 
             var tiers = TiersFor(cast, balance);
@@ -179,6 +188,9 @@ namespace Concafe.Simulation.Rules
 
                     if (rng.Chance(bottleRate))
                         ServeBottle(tiers, unlockedCount, bottleItem, stock, rng, ref r);
+
+                    if (rng.Chance(limitedRate))
+                        ServeLimited(balance, stock, ref r);
                 }
             }
 
@@ -281,6 +293,23 @@ namespace Concafe.Simulation.Rules
             r.BottlesSold++;
             // ノンアルコールは fatigueTier が 0 なので酒疲労を生まない。
             r.BottleFatigueTiers += tiers[index].FatigueTier;
+        }
+
+        /// <summary>
+        /// 期間限定商品（U-18）。
+        ///
+        /// **在庫が無くても機会損失にしない。** これだけが他の品目と違う。
+        /// 切らすたびに損が出る作りにすると、実質「毎週必ず仕入れる商品」になり、
+        /// 限定という性格が消えて発注の手が 1 つ減る。
+        /// 在庫があるときの上振れとして置いてある。
+        ///
+        /// 実家の家業 OB からは原価 0 で届く（要件 6.1）ので、その OB がいる間は
+        /// 純粋な上乗せになる。バックの対象にはしない（不変条件 25）。
+        /// </summary>
+        static void ServeLimited(BalanceData balance, Inventory stock, ref ServiceResult r)
+        {
+            if (stock.TryConsume(StockKey.Limited))
+                r.SalesYen += balance.Items.Limited.PriceYen;
         }
 
         /// <summary>チェキ用。バック対象。</summary>

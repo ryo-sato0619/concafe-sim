@@ -60,7 +60,7 @@ namespace Concafe.Simulation.Rules
 
         public static List<GuestAssignment> Assign(
             IReadOnlyList<OnDuty> working, BalanceData balance, Weather weather,
-            AlumniEffects alumni, GameRandom rng)
+            AlumniEffects alumni, GameRandom rng, int dayOfWeek = 0)
         {
             var result = new List<GuestAssignment>(working.Count);
             if (working.Count == 0) return result;
@@ -77,12 +77,20 @@ namespace Concafe.Simulation.Rules
             // 来客は「出勤した時間数」に比例する。平日の全時間（開店〜閉店）を
             // 1.0 として比で効かせているので、平日フル出勤の来客数は
             // シフトを時刻で持つ前と変わらない（T-44 を維持する）。
-            double baseline = balance.Business.BaselineOpenHours;
+            //
+            // さらに時間帯ごとの重み（U-20）が掛かる。重みはその日の合計で
+            // 正規化してあるので、フル出勤の値は変わらない。変わるのは
+            // 部分シフトの取り分だけで、混む時間帯に置いたほうが客が付く。
+            var hoursFactors = new double[working.Count];
+            for (int i = 0; i < working.Count; i++)
+                hoursFactors[i] = balance.Business.VisitorHoursFactor(
+                    working[i].Slot.StartHour, working[i].Slot.EndHour, dayOfWeek);
 
             // 固定客。天候のうち stormFactor だけが効く。
-            foreach (var d in working)
+            for (int i = 0; i < working.Count; i++)
             {
-                double hoursFactor = d.Slot.Hours / baseline;
+                var d = working[i];
+                double hoursFactor = hoursFactors[i];
                 int regulars = FloorCount(
                     d.Cast.Current.Regulars * balance.Visitors.RegularBase
                     * hoursFactor * w.StormFactor);
@@ -100,7 +108,7 @@ namespace Concafe.Simulation.Rules
             {
                 double v = working[i].Cast.Current.Fame
                          * LooksMultiplier(working[i].Cast, balance, alumni)
-                         * (working[i].Slot.Hours / baseline);
+                         * hoursFactors[i];
                 fameWeights[i] = v;
                 fameRaw += v;
             }

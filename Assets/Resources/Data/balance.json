@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
 
   "time": {
     "weeksPerYear": 48,
@@ -46,7 +46,9 @@
     "interviewCostAp": 1,
     "dailyWorkGain": 0.3,
     "_moraleWorkGainRatio": "出勤によるモラルの自然成長。トーク・知名度に対する比率。真面目に働き続ければ真面目さも育つが、伸びは遅い",
-    "moraleWorkGainRatio": 0.5
+    "moraleWorkGainRatio": 0.5,
+    "_regularsWorkGainRatio": "出勤による集客の自然成長（U-19）。0 なら集客は特訓でしか伸びない",
+    "regularsWorkGainRatio": 0.0
   },
 
   "visitors": {
@@ -88,6 +90,10 @@
     "_shift": "1回のシフトの最短時間。これ未満は入れられない",
     "minShiftHours": 2,
 
+    "_peak": "時間帯ごとの来客の重み。添字は開店からの経過時間で、休日は15時から、平日は17時から数えるので添字2が平日の開店に当たる。フル出勤の来客数は重みの合計で正規化するので変わらない（平日18人/日・休日24人/日を維持する）。効くのは『シフトをどこに置くか』だけ",
+    "_peakIntent": "夜が忙しい。ただし深夜割増（22時〜）と重なるので、ピークを取りにいくと人件費も疲労も増える",
+    "hourWeights": [0.5, 0.6, 0.7, 0.8, 0.9, 1.1, 1.3, 1.2],
+
     "_holidays": "曜日の添字。0=月曜、6=日曜",
     "holidayDays": [5, 6]
   },
@@ -111,7 +117,9 @@
     "talkSpan": 1.0,
     "chekiRate": 0.35,
     "castDrinkRate": 0.25,
-    "bottleRate": 0.03
+    "bottleRate": 0.03,
+    "_limitedRate": "期間限定商品（U-18）。在庫があるときだけ注文が起きる。切らしても機会損失にならないのは、常備を強いると『毎週必ず仕入れる商品』になって限定の意味が消えるため",
+    "limitedRate": 0.12
   },
 
   "_items": "ソフトドリンクとアルコールは原価だけ持つ。売価は用途で決まる（客のドリンク 900／キャストドリンク 1,600）",
