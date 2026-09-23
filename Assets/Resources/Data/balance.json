@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 11,
+  "schemaVersion": 12,
 
   "time": {
     "weeksPerYear": 48,
@@ -44,7 +44,9 @@
     "careRecover": 4.0,
     "trustPerCare": 4.0,
     "interviewCostAp": 1,
-    "dailyWorkGain": 0.3
+    "dailyWorkGain": 0.3,
+    "_moraleWorkGainRatio": "出勤によるモラルの自然成長。トーク・知名度に対する比率。真面目に働き続ければ真面目さも育つが、伸びは遅い",
+    "moraleWorkGainRatio": 0.5
   },
 
   "visitors": {

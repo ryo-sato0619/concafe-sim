@@ -16,6 +16,8 @@ namespace Concafe.Simulation.Model
         public int LostOrders;
         /// <summary>在庫切れで失った売上。</summary>
         public long LostSalesYen;
+        /// <summary>在庫切れで失望して離れた固定客。</summary>
+        public double LostRegulars;
         public bool Closed;
     }
 
@@ -152,6 +154,8 @@ namespace Concafe.Simulation.Model
         public int TotalVisitors;
         public int LostOrders;
         public long LostSalesYen;
+        /// <summary>在庫切れで失望して離れた固定客の合計。</summary>
+        public double LostRegulars;
 
         /// <summary>1 日店長イベントで上乗せされた売上。</summary>
         public long OneDayManagerBonusYen;

@@ -79,10 +79,17 @@ namespace Concafe.Simulation.Rules
         }
 
         /// <summary>
-        /// 出勤による自然成長。トークと知名度だけが伸びる（設計書 14.4）。
+        /// 出勤による自然成長（設計書 14.4）。
         ///
         /// 出勤時間に比例させる。長く入れば売上も経験も増えるが、疲労も増える。
         /// 基準は平日の全営業時間で、フル出勤なら dailyWorkGain のままになる。
+        ///
+        /// トークと知名度が主。モラルはその半分の速さで伸びる
+        /// （真面目に働き続ければ真面目さも育つが、遅い）。
+        ///
+        /// モラルを出勤でも伸ばすのは、そうしないと**卒業が成立しないため**である。
+        /// 特訓だけに頼ると、AP が有限なぶんモラルまで手が回らず、
+        /// 10 年で一度も OB が出ないことが通しシミュレーションで判明した（設計書 14.9）。
         ///
         /// 集客が接客では伸びないのは意図的である。固定客を増やす手段を特訓に限ることで、
         /// 店長 AP を割く価値が保たれる。
@@ -96,6 +103,7 @@ namespace Concafe.Simulation.Rules
 
             Apply(cast, StatKind.Talk, g);
             Apply(cast, StatKind.Fame, g);
+            Apply(cast, StatKind.Morale, g * balance.Manager.MoraleWorkGainRatio);
         }
     }
 }

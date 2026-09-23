@@ -4,7 +4,7 @@
   "_graduation": "卒業の条件。すべて満たしたうえで、年齢か上限到達のどちらかを満たす必要がある",
   "graduation": {
     "minWeeks": 96,
-    "minMorale": 70.0,
+    "minMorale": 45.0,
     "_orCondition": "在籍とモラルを満たしたら、年齢がこれ以上か、全パラメータが上限に届いていること",
     "minAge": 24,
     "capReachedRatio": 0.98

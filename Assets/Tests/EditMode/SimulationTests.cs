@@ -250,7 +250,8 @@ namespace Concafe.Tests
         {
             var s = NewState();
             // 炎上で退店すると加齢が止まるため、耐性を最大にして雑音を消す。
-            var cast = MakeCast("c1", "テスト", 18, birthWeek: 5, scandalResist: 100);
+            // 卒業すると加齢が止まるので、モラルを閾値未満にしておく。
+            var cast = MakeCast("c1", "テスト", 18, morale: 10, birthWeek: 5, scandalResist: 100);
             s.Shop.Roster.Add(cast);
             FillStock(s.Shop);
             s.Shop.CashYen = long.MaxValue / 4;

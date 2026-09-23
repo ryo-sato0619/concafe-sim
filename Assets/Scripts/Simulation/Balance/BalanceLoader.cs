@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 11;
+        public const int SupportedSchemaVersion = 12;
 
         public static BalanceData Load(string json)
         {
@@ -101,6 +101,7 @@ namespace Concafe.Simulation.Balance
                 TrustPerCare = Num(mgr, "manager.trustPerCare", problems, "trustPerCare"),
                 InterviewCostAp = Int(mgr, "manager.interviewCostAp", problems, "interviewCostAp"),
                 DailyWorkGain = Num(mgr, "manager.dailyWorkGain", problems, "dailyWorkGain"),
+                MoraleWorkGainRatio = Num(mgr, "manager.moraleWorkGainRatio", problems, "moraleWorkGainRatio"),
             };
 
             var vis = Section(root, "visitors", problems);

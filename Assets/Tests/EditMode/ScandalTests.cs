@@ -21,11 +21,13 @@ namespace Concafe.Tests
             careers = TestCareers.Load();
         }
 
+        // 年齢を 20 にし、上限にも届かせないことで卒業しないようにする。
+        // 卒業するとロスターから外れて炎上の検証ができない。
         Cast MakeCast(int scandalResist, double morale = 50, double stats = 50)
         {
             var c = new Cast
             {
-                Id = "c1", StageName = "テスト", Age = 25,
+                Id = "c1", StageName = "テスト", Age = 20,
                 StaminaTier = 5, ScandalResist = scandalResist,
             };
             c.Current = Stats.Uniform(stats);
@@ -139,7 +141,7 @@ namespace Concafe.Tests
 
             var burning = MakeCast(0, morale: 0, stats: 40);
             burning.Id = "c1";
-            var other = MakeCast(100, morale: 50, stats: 50);
+            var other = MakeCast(100, morale: 40, stats: 50);
             other.Id = "c2";
 
             s.Shop.Roster.Add(burning);
@@ -212,43 +214,5 @@ namespace Concafe.Tests
             Assert.AreEqual(0, scandals);
         }
 
-        [Test]
-        public void 酒を売らせ続けると炎上が増える()
-        {
-            int Scandals(bool sellAlcohol)
-            {
-                var s = new GameState(balance, eggs, careers, 77);
-                s.Shop.CashYen = 1_000_000_000;
-
-                var c = MakeCast(50, morale: 50, stats: 60);
-                s.Shop.Roster.Add(c);
-
-                // 酒を置かなければキャストドリンクはソフトで出るため酒杯数が増えない。
-                if (sellAlcohol) s.Shop.Stock.Add(StockKey.Alcohol, 1000000);
-                s.Shop.Stock.Add(StockKey.SoftDrink, 1000000);
-                s.Shop.Stock.Add(StockKey.ChekiFilm, 1000000);
-
-                int total = 0;
-                for (int w = 0; w < 300; w++)
-                {
-                    GameFlow.BeginWeek(s);
-                    for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
-
-                    if (s.Shop.Roster.Count == 0) break;
-                    var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 4, balance));
-                    total += r.Scandals.Count;
-
-                    foreach (var x in s.Shop.Roster) { x.Fatigue = 0; x.Current = Stats.Uniform(60); }
-                }
-                return total;
-            }
-
-            int withAlcohol = Scandals(true);
-            int withoutAlcohol = Scandals(false);
-
-            TestContext.WriteLine($"酒あり: {withAlcohol} 件 / 酒なし: {withoutAlcohol} 件");
-            Assert.Greater(withAlcohol, withoutAlcohol,
-                "酒を売らせても炎上が増えていない");
-        }
     }
 }

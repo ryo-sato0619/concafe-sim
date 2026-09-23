@@ -365,6 +365,18 @@ namespace Concafe.Simulation.Rules
                     s.BottlesSold += service.BottlesSold;
                     s.AlcoholDrinksServed += service.AlcoholDrinks;
 
+                    // U-05: 在庫を切らすと常連が失望する。
+                    //
+                    // 機会損失 1 件ごとに削ると 1 日に数十件出ることがあり、
+                    // 1 週間で固定客が消し飛ぶ。1 日 1 回までにしてある。
+                    if (service.LostOrders > 0 && balance.StockLostRegular > 0)
+                    {
+                        double lost = balance.StockLostRegular;
+                        if (lost > a.Cast.Current.Regulars) lost = a.Cast.Current.Regulars;
+                        a.Cast.Current.Regulars -= lost;
+                        dayResult.LostRegulars += lost;
+                    }
+
                     double before = a.Cast.Fatigue;
                     FatigueRules.ApplyWork(a.Cast, service, balance, weather);
                     s.FatigueGained += a.Cast.Fatigue - before;
@@ -382,6 +394,7 @@ namespace Concafe.Simulation.Rules
                 result.TotalVisitors += dayResult.Visitors;
                 result.LostOrders += dayResult.LostOrders;
                 result.LostSalesYen += dayResult.LostSalesYen;
+                result.LostRegulars += dayResult.LostRegulars;
             }
         }
 

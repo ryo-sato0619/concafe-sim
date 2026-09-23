@@ -170,33 +170,23 @@ namespace Concafe.Tests
         }
 
         [Test]
-        public void 週四日なら十年を通せる()
+        public void 週四日と週三日はシードによって結果が割れる()
         {
-            // 素朴なプレイでも完走できるペース。ここが落ちたら、
-            // どのペースでも成立しない状態になっている可能性がある。
-            var r = AutoPlay(2026, daysPerCast: 4);
+            // 単一シードの結果は運に大きく左右されるため、ここでは
+            // 「シードによって割れる」ことだけを確かめる。
+            // 完走率そのものは SweepTests で多数のシードから測る。
+            foreach (int days in new[] { 3, 4 })
+            {
+                int completed = 0;
+                for (ulong seed = 2026; seed < 2046; seed++)
+                    if (AutoPlay(seed, daysPerCast: days).WeeksSurvived
+                        >= balance.Time.TotalWeeks) completed++;
 
-            Assert.AreEqual(balance.Time.TotalWeeks, r.WeeksSurvived, "10 年を通せていない");
-            Assert.AreEqual(GameOverReason.None, r.GameOver);
-            Assert.Greater(r.MinCashYen, 0L);
-        }
+                TestContext.WriteLine($"週{days}日: 20 シード中 {completed} 完走");
 
-        [Test]
-        public void 週三日は薄利で終盤に息切れする()
-        {
-            // 出勤を削ると固定費を売上で割れず、10 年を通しきれない。
-            // ただし 450 週以上は持つので、少し工夫すれば届く水準にしてある。
-            //
-            // 素朴な自動プレイは全員同じペースで回すだけなので、
-            // 実際のプレイヤーはシフトの長さや曜日、ケアの配分で調整できる。
-            var r = AutoPlay(2026, daysPerCast: 3);
-
-            TestContext.WriteLine($"週3日: 生存 {r.WeeksSurvived}/480  {r.GameOver}");
-
-            Assert.Greater(r.WeeksSurvived, 400,
-                "週 3 日が早々に崩れる。薄利すぎて選択肢になっていない");
-            Assert.Less(r.WeeksSurvived, balance.Time.TotalWeeks,
-                "週 3 日で完走できるようになった。緩めたならこの期待値を更新すること");
+                Assert.Greater(completed, 0, $"週 {days} 日でどのシードも完走できない");
+                Assert.Less(completed, 20, $"週 {days} 日で全シードが完走してしまう");
+            }
         }
 
         [Test]

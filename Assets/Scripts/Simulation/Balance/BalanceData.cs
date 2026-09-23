@@ -125,6 +125,8 @@ namespace Concafe.Simulation.Balance
         public double TrustPerCare { get; internal set; }
         public int InterviewCostAp { get; internal set; }
         public double DailyWorkGain { get; internal set; }
+        /// <summary>出勤によるモラルの自然成長。トーク・知名度に対する比率。</summary>
+        public double MoraleWorkGainRatio { get; internal set; }
     }
 
     public sealed class VisitorBalance

@@ -161,6 +161,9 @@ namespace Concafe.Tests
             ManagerActions.Order(s, StockKey.SoftDrink, 400);
             ManagerActions.Order(s, StockKey.Alcohol, 400);
             ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
+            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
+                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
 
             var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
 
@@ -194,6 +197,9 @@ namespace Concafe.Tests
             ManagerActions.Order(s, StockKey.SoftDrink, 400);
             ManagerActions.Order(s, StockKey.Alcohol, 400);
             ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
+            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
+                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
 
             var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
 
@@ -284,6 +290,9 @@ namespace Concafe.Tests
                     ManagerActions.Order(s, StockKey.SoftDrink, 400);
                     ManagerActions.Order(s, StockKey.Alcohol, 400);
                     ManagerActions.Order(s, StockKey.ChekiFilm, 300);
+            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
+            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
+                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
                     for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
                         ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 20);
 
