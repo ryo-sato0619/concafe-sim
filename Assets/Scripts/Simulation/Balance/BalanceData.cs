@@ -34,9 +34,69 @@ namespace Concafe.Simulation.Balance
         public DepartureBalance Departure { get; internal set; }
         public double StockLostRegular { get; internal set; }
         public ScandalBalance Scandal { get; internal set; }
+        public FacilityBalance Facilities { get; internal set; }
         public IReadOnlyList<RecruitTier> Recruit { get; internal set; }
         public CastGenBalance CastGen { get; internal set; }
         public AppearanceBalance Appearance { get; internal set; }
+    }
+
+    /// <summary>
+    /// 設備投資（U-13）。
+    ///
+    /// 店長自身のレベルアップは持たない（不変条件 6）ので、店舗の強化はここだけである。
+    /// **疲労限界（不変条件 1）と店長 AP の週次付与量（不変条件 7）には
+    /// 効かせない。** そのための項目をここに増やさないこと。
+    /// 終盤に全員をケアできなくなることが緊張の源であり、設備で AP を買えると
+    /// 枠の拡張が一方的な強化になってしまう。
+    /// </summary>
+    public sealed class FacilityBalance
+    {
+        /// <summary>1 段上げるごとの費用。添字 i は level i → i+1。</summary>
+        public IReadOnlyList<long> ExpansionPriceYen { get; internal set; }
+
+        /// <summary>冷蔵する品目の保管上限。添字が level（0 が初期状態）。</summary>
+        public IReadOnlyList<int> FridgeCapacity { get; internal set; }
+        public IReadOnlyList<long> FridgePriceYen { get; internal set; }
+
+        /// <summary>客のドリンクの単価への加算。添字が level（0 は必ず 0）。</summary>
+        public IReadOnlyList<long> EspressoDrinkBonusYen { get; internal set; }
+        public IReadOnlyList<long> EspressoPriceYen { get; internal set; }
+
+        public int MaxLevel(FacilityKind kind)
+        {
+            switch (kind)
+            {
+                case FacilityKind.Expansion: return ExpansionPriceYen.Count;
+                case FacilityKind.Fridge: return FridgePriceYen.Count;
+                case FacilityKind.Espresso: return EspressoPriceYen.Count;
+                default: return 0;
+            }
+        }
+
+        /// <summary>level から 1 段上げる費用。上限に達していれば -1。</summary>
+        public long UpgradePriceYen(FacilityKind kind, int level)
+        {
+            if (level < 0 || level >= MaxLevel(kind)) return -1;
+
+            switch (kind)
+            {
+                case FacilityKind.Expansion: return ExpansionPriceYen[level];
+                case FacilityKind.Fridge: return FridgePriceYen[level];
+                case FacilityKind.Espresso: return EspressoPriceYen[level];
+                default: return -1;
+            }
+        }
+    }
+
+    /// <summary>設備の種類。要件 5.4 の 3 種。</summary>
+    public enum FacilityKind
+    {
+        /// <summary>店舗拡張。キャストの在籍枠が増える。</summary>
+        Expansion,
+        /// <summary>冷蔵庫の拡張。在庫の保管上限が増える。</summary>
+        Fridge,
+        /// <summary>エスプレッソマシン。客のドリンクの単価が上がる。</summary>
+        Espresso,
     }
 
     /// <summary>

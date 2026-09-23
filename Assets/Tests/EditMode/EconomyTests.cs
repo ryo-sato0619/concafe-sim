@@ -46,6 +46,37 @@ namespace Concafe.Tests
         }
 
         /// <summary>
+        /// 測定用に在庫を満たす。
+        ///
+        /// 冷蔵庫を最大段まで上げてから積むのは、保管上限（U-13）が収支の測定に
+        /// 混ざらないようにするため。設備を直接いじって費用を払わないのも同じ理由で、
+        /// ここで測りたいのは素の経済であって設備の損得ではない。
+        /// エスプレッソマシンは 0 段のままなので客のドリンクの単価は素のままである。
+        ///
+        /// 在庫を切らすと機会損失に加えて固定客まで削れる（U-05）ので、
+        /// 切らさない量を積むこと自体が測定の前提になっている。
+        /// </summary>
+        void Stockpile(GameState s)
+        {
+            s.Shop.Facilities[FacilityKind.Fridge] =
+                balance.Facilities.FridgeCapacity.Count - 1;
+
+            TopUp(s, StockKey.SoftDrink, 300);
+            TopUp(s, StockKey.Alcohol, 300);
+            TopUp(s, StockKey.ChekiFilm, 300);
+            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
+                TopUp(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 15);
+        }
+
+        static void TopUp(GameState s, StockKey key, int target)
+        {
+            int have = s.Shop.Stock[key];
+            if (have < target)
+                Assert.AreEqual(ActionResult.Ok, ManagerActions.Order(s, key, target - have),
+                    $"{key} を積めない。冷蔵庫の上限が測定に混ざっている");
+        }
+
+        /// <summary>
         /// 各パラメータ 20 のキャストを castCount 人置き、pattern のシフトで回す。
         /// 疲労は毎週リセットする（離脱を挟まず収支だけを見たいため）。
         /// </summary>
@@ -73,11 +104,7 @@ namespace Concafe.Tests
                 GameFlow.BeginWeek(s);
                 for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
 
-                ManagerActions.Order(s, StockKey.SoftDrink, 300);
-                ManagerActions.Order(s, StockKey.Alcohol, 300);
-                ManagerActions.Order(s, StockKey.ChekiFilm, 200);
-                for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
-                    ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 20);
+                Stockpile(s);
 
                 long stockBefore = StockValue(s.Shop, balance);
 
@@ -158,12 +185,7 @@ namespace Concafe.Tests
 
             GameFlow.BeginWeek(s);
             for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
-            ManagerActions.Order(s, StockKey.SoftDrink, 400);
-            ManagerActions.Order(s, StockKey.Alcohol, 400);
-            ManagerActions.Order(s, StockKey.ChekiFilm, 300);
-            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
-            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
-                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
+            Stockpile(s);
 
             var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
 
@@ -194,12 +216,7 @@ namespace Concafe.Tests
 
             GameFlow.BeginWeek(s);
             for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
-            ManagerActions.Order(s, StockKey.SoftDrink, 400);
-            ManagerActions.Order(s, StockKey.Alcohol, 400);
-            ManagerActions.Order(s, StockKey.ChekiFilm, 300);
-            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
-            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
-                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
+            Stockpile(s);
 
             var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
 
@@ -287,14 +304,7 @@ namespace Concafe.Tests
                     GameFlow.BeginWeek(s);
                     for (int d = 0; d < Shift.DaysPerWeek; d++) s.Weather[d] = Weather.Sunny;
 
-                    ManagerActions.Order(s, StockKey.SoftDrink, 400);
-                    ManagerActions.Order(s, StockKey.Alcohol, 400);
-                    ManagerActions.Order(s, StockKey.ChekiFilm, 300);
-            // ボトルを置かないと機会損失で固定客が削れる（U-05）。
-            for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
-                ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 30);
-                    for (int t = 0; t < balance.Bottles.Alcoholic.Count; t++)
-                        ManagerActions.Order(s, StockKey.Bottle(StockItem.BottleAlcoholic, t), 20);
+                    Stockpile(s);
 
                     var r = GameFlow.RunWeek(s, Shift.FullDays(s.Shop.Roster, 7, balance));
                     rev += r.RevenueYen;

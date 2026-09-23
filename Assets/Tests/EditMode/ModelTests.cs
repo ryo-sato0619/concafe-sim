@@ -383,10 +383,12 @@ namespace Concafe.Tests
             Assert.AreEqual(70_000L, shop.WeeklyRentYen(balance));
 
             shop.CastSlots = 6;
-            Assert.AreEqual(95_000L, shop.WeeklyRentYen(balance));
+            Assert.AreEqual(160_000L, shop.WeeklyRentYen(balance));
 
+            // 最大まで広げると家賃は 4 倍を超える。広げること自体がリスクである
+            // ことがここで担保されている（設計書 14.1）。
             shop.CastSlots = 12;
-            Assert.AreEqual(145_000L, shop.WeeklyRentYen(balance));
+            Assert.AreEqual(340_000L, shop.WeeklyRentYen(balance));
         }
 
         [Test]

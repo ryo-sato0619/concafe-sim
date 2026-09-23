@@ -12,6 +12,8 @@ namespace Concafe.Simulation.Rules
         NoSlot,
         /// <summary>特訓本の在庫が無い。</summary>
         NoBook,
+        /// <summary>冷蔵庫の保管上限を超える。</summary>
+        NoStorage,
         NotFound,
         Invalid,
     }
@@ -137,6 +139,15 @@ namespace Concafe.Simulation.Rules
             long unit = UnitCostYen(state.Balance, key, state.Alumni);
             if (unit < 0) return ActionResult.Invalid;
 
+            // 冷蔵庫に入りきらない発注は通さない。
+            //
+            // 黙って切り詰めると、枠を広げたのに仕入れが足りない状態に
+            // プレイヤーが気づけない。冷蔵庫の拡張（要件 5.4）が
+            // 店舗拡張とセットで要る、という設計をここで見せる。
+            if (Shop.IsChilled(key.Item)
+                && state.Shop.ChilledCount + amount > state.Shop.FridgeCapacity(state.Balance))
+                return ActionResult.NoStorage;
+
             long total = unit * amount;
             if (state.Shop.CashYen < total) return ActionResult.NotEnoughCash;
 
@@ -145,6 +156,41 @@ namespace Concafe.Simulation.Rules
             state.WeekPurchaseYen += total;
             return ActionResult.Ok;
         }
+
+        /// <summary>
+        /// 設備投資（U-13）。資金だけを使い、AP は使わない。
+        ///
+        /// 不変条件 6: 店長自身は育たない。店舗の強化はここだけである。
+        /// 不変条件 1 / 7: 疲労限界にも店長 AP の付与量にも効かせない。
+        /// 枠を広げても AP が増えないことが、終盤に「誰に信頼を積むか」を
+        /// 選ばせる圧力になっている。
+        /// </summary>
+        public static ActionResult Invest(GameState state, FacilityKind kind)
+        {
+            int level = state.Shop.Facilities[kind];
+            long price = state.Balance.Facilities.UpgradePriceYen(kind, level);
+
+            if (price < 0) return ActionResult.Invalid;          // 最終段に達している
+            if (state.Shop.CashYen < price) return ActionResult.NotEnoughCash;
+
+            state.Shop.CashYen -= price;
+            state.Shop.Facilities[kind] = level + 1;
+
+            if (kind == FacilityKind.Expansion)
+            {
+                // 枠が増えると家賃も上がる（Shop.WeeklyRentYen）。
+                int slots = state.Shop.CastSlots + state.Balance.Shop.SlotsPerExpansion;
+                if (slots > state.Balance.Shop.MaxCastSlots)
+                    slots = state.Balance.Shop.MaxCastSlots;
+                state.Shop.CastSlots = slots;
+            }
+
+            return ActionResult.Ok;
+        }
+
+        /// <summary>次の段に上げる費用。最終段に達していれば -1。</summary>
+        public static long NextInvestmentYen(GameState state, FacilityKind kind) =>
+            state.Balance.Facilities.UpgradePriceYen(kind, state.Shop.Facilities[kind]);
 
         /// <summary>
         /// 1 個あたりの仕入れ原価。

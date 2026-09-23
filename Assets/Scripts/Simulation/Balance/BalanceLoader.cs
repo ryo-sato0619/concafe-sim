@@ -27,7 +27,7 @@ namespace Concafe.Simulation.Balance
     /// </summary>
     public static class BalanceLoader
     {
-        public const int SupportedSchemaVersion = 12;
+        public const int SupportedSchemaVersion = 13;
 
         public static BalanceData Load(string json)
         {
@@ -259,6 +259,25 @@ namespace Concafe.Simulation.Balance
                 DepartChance = Num(sc, "scandal.departChance", problems, "departChance"),
             };
 
+            var fac = Section(root, "facilities", problems);
+            var expansion = Section(fac, "expansion", problems);
+            var fridge = Section(fac, "fridge", problems);
+            var espresso = Section(fac, "espresso", problems);
+
+            d.Facilities = new FacilityBalance
+            {
+                ExpansionPriceYen = YenList(expansion["priceYen"],
+                                            "facilities.expansion.priceYen", problems),
+                FridgeCapacity = IntList(fridge["capacity"],
+                                         "facilities.fridge.capacity", problems),
+                FridgePriceYen = YenList(fridge["priceYen"],
+                                         "facilities.fridge.priceYen", problems),
+                EspressoDrinkBonusYen = YenList(espresso["drinkPriceBonusYen"],
+                                                "facilities.espresso.drinkPriceBonusYen", problems),
+                EspressoPriceYen = YenList(espresso["priceYen"],
+                                           "facilities.espresso.priceYen", problems),
+            };
+
             var recruitNode = root["recruit"];
             var recruit = new List<RecruitTier>();
             if (recruitNode.Type != JsonValue.Kind.Array)
@@ -391,6 +410,9 @@ namespace Concafe.Simulation.Balance
                 problems.Add($"shop.initialCastRecruitTier が 0〜{d.Recruit.Count - 1} の外");
             if (d.Shop.InitialCastStatBonus < 0)
                 problems.Add("shop.initialCastStatBonus が負");
+
+            // 設備投資
+            ValidateFacilities(d, problems);
 
             // 経費
             if (d.Cost.WeeklyRentYen < 0) problems.Add("cost.weeklyRentYen が負");
@@ -710,6 +732,56 @@ namespace Concafe.Simulation.Balance
 
         // ---- 読み取りの補助 -------------------------------------------------
 
+        /// <summary>
+        /// 設備投資（U-13）の検査。
+        ///
+        /// 「拡張の段数 × 1 段あたりの枠 ＋ 初期の枠 == 最大の枠」を強制するのが要点。
+        /// ここがずれると、最大まで投資しても枠が埋まらない／上限を超えるといった
+        /// 表示と実挙動の食い違いが起きる。
+        /// </summary>
+        static void ValidateFacilities(BalanceData d, List<string> problems)
+        {
+            var f = d.Facilities;
+
+            int reach = d.Shop.InitialCastSlots
+                      + f.ExpansionPriceYen.Count * d.Shop.SlotsPerExpansion;
+            if (reach != d.Shop.MaxCastSlots)
+                problems.Add($"facilities.expansion.priceYen の段数が合わない。" +
+                             $"全段投資して {reach} 人だが shop.maxCastSlots は {d.Shop.MaxCastSlots} 人");
+
+            Ascending(f.ExpansionPriceYen, "facilities.expansion.priceYen", problems);
+            Ascending(f.FridgePriceYen, "facilities.fridge.priceYen", problems);
+            Ascending(f.EspressoPriceYen, "facilities.espresso.priceYen", problems);
+
+            if (f.FridgeCapacity.Count != f.FridgePriceYen.Count + 1)
+                problems.Add("facilities.fridge.capacity は priceYen より 1 つ多いこと（添字が level で、0 が初期状態）");
+            if (f.FridgeCapacity.Count > 0 && f.FridgeCapacity[0] <= 0)
+                problems.Add("facilities.fridge.capacity[0] が 0 以下。初期状態で何も仕入れられない");
+            for (int i = 1; i < f.FridgeCapacity.Count; i++)
+                if (f.FridgeCapacity[i] <= f.FridgeCapacity[i - 1])
+                    problems.Add($"facilities.fridge.capacity[{i}] が増えていない。投資が損になる");
+
+            if (f.EspressoDrinkBonusYen.Count != f.EspressoPriceYen.Count + 1)
+                problems.Add("facilities.espresso.drinkPriceBonusYen は priceYen より 1 つ多いこと");
+            if (f.EspressoDrinkBonusYen.Count > 0 && f.EspressoDrinkBonusYen[0] != 0)
+                problems.Add("facilities.espresso.drinkPriceBonusYen[0] が 0 でない。未投資の状態に効果が付いている");
+            for (int i = 1; i < f.EspressoDrinkBonusYen.Count; i++)
+                if (f.EspressoDrinkBonusYen[i] <= f.EspressoDrinkBonusYen[i - 1])
+                    problems.Add($"facilities.espresso.drinkPriceBonusYen[{i}] が増えていない。投資が損になる");
+        }
+
+        static void Ascending(IReadOnlyList<long> prices, string path, List<string> problems)
+        {
+            if (prices.Count == 0) { problems.Add($"{path} が空"); return; }
+
+            for (int i = 0; i < prices.Count; i++)
+            {
+                if (prices[i] <= 0) problems.Add($"{path}[{i}] が 0 以下");
+                else if (i > 0 && prices[i] <= prices[i - 1])
+                    problems.Add($"{path}[{i}] が前の段以下。後の段ほど安いと段階が意味を失う");
+            }
+        }
+
         static JsonValue Section(JsonValue root, string key, List<string> problems)
         {
             var node = root[key];
@@ -786,6 +858,45 @@ namespace Concafe.Simulation.Balance
                 else list.Add(s.Trim());
                 i++;
             }
+            return list;
+        }
+
+        /// <summary>整数の配列。金額にも使う（不変条件 8）。</summary>
+        static IReadOnlyList<long> YenList(JsonValue node, string path, List<string> problems)
+        {
+            var list = new List<long>();
+            if (node.Type != JsonValue.Kind.Array)
+            {
+                problems.Add($"{path} が無いか配列ではない");
+                return list;
+            }
+
+            int i = 0;
+            foreach (var v in node.Items())
+            {
+                if (v.Type != JsonValue.Kind.Number)
+                {
+                    problems.Add($"{path}[{i}] が数値ではない");
+                    list.Add(0);
+                }
+                else if (v.AsDouble() != Math.Floor(v.AsDouble()))
+                {
+                    problems.Add($"{path}[{i}] が整数ではない。金額は整数の円で扱う（不変条件 8）");
+                    list.Add(0);
+                }
+                else
+                {
+                    list.Add((long)v.AsDouble());
+                }
+                i++;
+            }
+            return list;
+        }
+
+        static IReadOnlyList<int> IntList(JsonValue node, string path, List<string> problems)
+        {
+            var list = new List<int>();
+            foreach (long v in YenList(node, path, problems)) list.Add((int)v);
             return list;
         }
 

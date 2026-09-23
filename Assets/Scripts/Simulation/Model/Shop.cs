@@ -38,12 +38,29 @@ namespace Concafe.Simulation.Model
         public Stats FinalStats;
     }
 
-    /// <summary>資金を使った設備投資。店長のレベルアップは持たない（不変条件 6）。</summary>
-    public sealed class Facility
+    /// <summary>
+    /// 資金を使った設備投資の到達段階。店長のレベルアップは持たない（不変条件 6）。
+    ///
+    /// 各設備の効果と価格は `balance.json` の `facilities` にある。
+    /// ここが持つのは「どこまで投資したか」だけである。
+    /// </summary>
+    public sealed class FacilitySet
     {
-        public string Id { get; set; }
-        public string DisplayName { get; set; }
-        public int Level { get; set; }
+        readonly int[] levels = new int[3];
+
+        public int this[FacilityKind kind]
+        {
+            get => levels[(int)kind];
+            set => levels[(int)kind] = value;
+        }
+
+        /// <summary>セーブ・ロード用（段階 6）。</summary>
+        public int[] ToArray() => (int[])levels.Clone();
+
+        public void Restore(int[] saved)
+        {
+            for (int i = 0; i < levels.Length && i < saved.Length; i++) levels[i] = saved[i];
+        }
     }
 
     public sealed class Shop
@@ -56,13 +73,52 @@ namespace Concafe.Simulation.Model
         public List<Cast> Roster { get; } = new List<Cast>();
         public List<Applicant> Applicants { get; } = new List<Applicant>();
         public List<Alumnus> Alumni { get; } = new List<Alumnus>();
-        public List<Facility> Facilities { get; } = new List<Facility>();
+        public FacilitySet Facilities { get; } = new FacilitySet();
 
         public Inventory Stock { get; } = new Inventory();
 
         public int ManagerAp { get; set; }
 
         public bool HasFreeSlot => Roster.Count < CastSlots;
+
+        /// <summary>
+        /// 冷蔵庫に入っている数。冷蔵するのはドリンク類とボトルで、
+        /// チェキフィルムと期間限定商品は数えない。
+        /// </summary>
+        public int ChilledCount
+        {
+            get
+            {
+                int sum = 0;
+                foreach (var kv in Stock.Entries())
+                    if (IsChilled(kv.Key.Item)) sum += kv.Value;
+                return sum;
+            }
+        }
+
+        public static bool IsChilled(StockItem item) =>
+            item == StockItem.SoftDrink || item == StockItem.Alcohol
+            || StockItems.IsBottle(item);
+
+        /// <summary>冷蔵庫の保管上限。設備投資で増える（要件 5.4）。</summary>
+        public int FridgeCapacity(BalanceData balance)
+        {
+            var caps = balance.Facilities.FridgeCapacity;
+            int level = Facilities[FacilityKind.Fridge];
+            if (level < 0) level = 0;
+            if (level >= caps.Count) level = caps.Count - 1;
+            return caps[level];
+        }
+
+        /// <summary>客のドリンクの単価。エスプレッソマシンで上がる。</summary>
+        public long GuestDrinkBonusYen(BalanceData balance)
+        {
+            var bonus = balance.Facilities.EspressoDrinkBonusYen;
+            int level = Facilities[FacilityKind.Espresso];
+            if (level < 0) level = 0;
+            if (level >= bonus.Count) level = bonus.Count - 1;
+            return bonus[level];
+        }
 
         public static Shop NewGame(BalanceData balance)
         {

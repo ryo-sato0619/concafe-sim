@@ -134,7 +134,7 @@ namespace Concafe.Simulation.Rules
         public static ServiceResult Serve(
             Cast cast, int guests, int shiftHours,
             BalanceData balance, Inventory stock, GameRandom rng,
-            AlumniEffects alumni = null)
+            AlumniEffects alumni = null, long guestDrinkBonusYen = 0)
         {
             var r = new ServiceResult();
             if (guests <= 0 || shiftHours <= 0) return r;
@@ -169,7 +169,7 @@ namespace Concafe.Simulation.Rules
                     r.SalesYen += charge;
 
                     // 客のドリンク。1 時間あたり 1 杯（設計書 4.3）。在庫を消費する。
-                    ServeBaseDrink(balance, stock, ref r);
+                    ServeBaseDrink(balance, stock, guestDrinkBonusYen, ref r);
 
                     if (rng.Chance(chekiRate))
                         Consume(StockKey.ChekiFilm, balance.Items.ChekiFilm.PriceYen, stock, ref r);
@@ -196,10 +196,15 @@ namespace Concafe.Simulation.Rules
         /// 品目を分けて持っているのはキャストドリンクとボトルの年齢判定のためで、
         /// 客のドリンクでまで分けると、未成年中心のシフトのときに
         /// ソフトドリンクを切らしただけで売上が止まってしまう。
+        ///
+        /// エスプレッソマシン（設備投資）はここの単価だけを上げる。
+        /// チャージには効かず、バックの対象にもならない（不変条件 25）ので、
+        /// **売上が伸びても人件費に跳ねない唯一の投資**になっている。
         /// </summary>
-        static void ServeBaseDrink(BalanceData balance, Inventory stock, ref ServiceResult r)
+        static void ServeBaseDrink(
+            BalanceData balance, Inventory stock, long bonusYen, ref ServiceResult r)
         {
-            long price = balance.Visit.GuestDrinkPriceYen;
+            long price = balance.Visit.GuestDrinkPriceYen + bonusYen;
 
             // 売価は一律。違うのは原価だけなので、在庫のあるほうから出す。
             if (stock.TryConsume(StockKey.Alcohol) || stock.TryConsume(StockKey.SoftDrink))

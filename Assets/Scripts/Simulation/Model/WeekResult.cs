@@ -108,6 +108,11 @@ namespace Concafe.Simulation.Model
         public DepartureOverride Override;
         public DepartureTrigger Trigger;
         public string EventId;
+        /// <summary>
+        /// 去った時点の市場価値。飛ぶか転生かの分かれ目（設計書 4.8）。
+        /// 閾値の妥当性（U-15）は、この分布を見て決める。
+        /// </summary>
+        public double MarketValue;
         /// <summary>失われた固定客（そのキャストの集客）。</summary>
         public double LostRegulars;
         /// <summary>飛ばれたことで他のキャスト全員から削られた集客の合計。</summary>

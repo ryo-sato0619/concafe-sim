@@ -46,6 +46,7 @@ namespace Concafe.Simulation.Rules
                 Override = outcome.Override,
                 Trigger = DepartureTrigger.Burnout,
                 EventId = outcome.EventId,
+                MarketValue = cast.MarketValue,
                 LostRegulars = cast.Current.Regulars,
                 AntiSpreadTotal = 0,
             };
@@ -77,6 +78,7 @@ namespace Concafe.Simulation.Rules
                 Kind = DepartureKind.RanAway,
                 Override = DepartureOverride.None,
                 Trigger = DepartureTrigger.Scandal,
+                MarketValue = cast.MarketValue,
                 LostRegulars = cast.Current.Regulars,
             };
 

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 12,
+  "schemaVersion": 13,
 
   "time": {
     "weeksPerYear": 48,
@@ -23,8 +23,8 @@
   "cost": {
     "_rent": "家賃・光熱費・通信費。週あたりの固定額（月28万相当）",
     "weeklyRentYen": 70000,
-    "_expansion": "キャスト枠を slotsPerExpansion 増やすごとに家賃がこれだけ上がる",
-    "rentPerExpansionYen": 25000,
+    "_expansion": "キャスト枠を slotsPerExpansion 増やすごとに家賃がこれだけ上がる。広げること自体がリスクでなければ、拡張は「資金が貯まったら押すだけのボタン」になる",
+    "rentPerExpansionYen": 90000,
 
     "_manager": "店長自身の報酬。店長も食べていかなければならない（月24万相当）",
     "weeklyManagerPayYen": 60000,
@@ -169,7 +169,8 @@
 
   "departure": {
     "warnRatio": 0.75,
-    "defectThreshold": 55.0,
+    "_defectThreshold": "marketValue(集客・知名度・トークの平均)がこれ以上なら転生、未満なら飛ぶ。疲労離脱した301件の実測は 中央36／P75 45／P90 50／P99 56 で、55 だと99パーセンタイルになり転生がほぼ起きなかった。45 は求人ティア1のcapMeanと同じ水準で、「安く採った者は飛び、投資して採った者は引き抜かれる」という線になる",
+    "defectThreshold": 45.0,
     "antiSpread": 3.0
   },
 
@@ -189,6 +190,28 @@
     "moraleLoss": 10.0,
     "_depart": "炎上がそのまま退店につながる確率",
     "departChance": 0.15
+  },
+
+  "_facilities": "設備投資（U-13）。店長自身は育たない（不変条件6）ので、店舗強化はここだけ。疲労限界・店長APには絶対に効かせない（不変条件1・7）",
+  "facilities": {
+    "expansion": {
+      "_effect": "キャスト枠を shop.slotsPerExpansion ずつ増やす。1段ごとに家賃が cost.rentPerExpansionYen 上がるので、広げること自体がリスクになる",
+      "priceYen": [3000000, 8000000, 18000000]
+    },
+
+    "fridge": {
+      "_effect": "冷蔵する品目（ソフトドリンク・アルコール・ボトル）の保管上限。添字が level で、0 が初期状態",
+      "_calibration": "週次の実需の実測値は 枠3人で198／6人で335／9人で440／12人で544。各段は1つ下の枠数までしか賄えない",
+      "capacity": [240, 400, 560, 720],
+      "priceYen": [400000, 1000000, 2200000]
+    },
+
+    "espresso": {
+      "_effect": "客のドリンクの単価が上がる。チャージには効かない。バック対象外なので人件費に跳ねない（不変条件25）",
+      "_calibration": "単価への加算は店の規模に比例して効くので、終盤の価格で見積もる。枠12人だと週の延べ滞在が1,500時間を超える",
+      "drinkPriceBonusYen": [0, 100, 220],
+      "priceYen": [3000000, 9000000]
+    }
   },
 
   "recruit": [

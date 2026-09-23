@@ -1145,7 +1145,8 @@ namespace Concafe.Tests
 
             var r = RunOneWeek(s, Weather.Sunny, workDays: 0);
 
-            Assert.AreEqual(70_000L + 25_000L, r.RentYen);
+            Assert.AreEqual(balance.Cost.WeeklyRentYen + balance.Cost.RentPerExpansionYen,
+                            r.RentYen);
         }
 
         // ---- 天候の生成 ------------------------------------------------------

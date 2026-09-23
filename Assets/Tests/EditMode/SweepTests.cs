@@ -36,6 +36,9 @@ namespace Concafe.Tests
             public int Graduations, RanAways, Defections, Scandals, Hires;
             public readonly List<int> MaxTenure = new List<int>();
             public readonly List<long> MaxMorale = new List<long>();
+            public readonly List<int> Slots = new List<int>();
+            public readonly List<double> DepartValues = new List<double>();
+            public int LostOrders, Neglected;
             public readonly Dictionary<GameOverReason, int> Endings =
                 new Dictionary<GameOverReason, int>();
         }
@@ -58,6 +61,10 @@ namespace Concafe.Tests
                 sum.Hires += r.Hires;
                 sum.MaxTenure.Add(r.MaxTenureWeeks);
                 sum.MaxMorale.Add((long)r.MaxMorale);
+                sum.Slots.Add(r.FinalCastSlots);
+                sum.DepartValues.AddRange(r.DepartMarketValues);
+                sum.LostOrders += r.LostOrders;
+                sum.Neglected += r.NeglectedCastWeeks;
 
                 sum.Endings[r.GameOver] =
                     sum.Endings.TryGetValue(r.GameOver, out int n) ? n + 1 : 1;
@@ -102,7 +109,10 @@ namespace Concafe.Tests
             TestContext.WriteLine($"  飛ぶ/回     : {s.RanAways / (double)s.Runs:F1}");
             TestContext.WriteLine($"  炎上/回     : {s.Scandals / (double)s.Runs:F1}");
             TestContext.WriteLine($"  最長在籍(週): 中央 {Percentile2(s.MaxTenure, 0.5)} / 最大 {Percentile2(s.MaxTenure, 1.0)}（卒業は96週〜）");
-            TestContext.WriteLine($"  最高モラル  : 中央 {Percentile(s.MaxMorale, 0.5)} / 最大 {Percentile(s.MaxMorale, 1.0)}（卒業は70〜）");
+            TestContext.WriteLine($"  最高モラル  : 中央 {Percentile(s.MaxMorale, 0.5)} / 最大 {Percentile(s.MaxMorale, 1.0)}（卒業は45〜）");
+            TestContext.WriteLine($"  到達枠      : 中央 {Percentile2(s.Slots, 0.5)} / 最大 {Percentile2(s.Slots, 1.0)} 人");
+            TestContext.WriteLine($"  ケア不足    : {s.Neglected / (double)s.Runs:F0} 人週/回（疲労が限界の75%超）");
+            TestContext.WriteLine($"  在庫切れ    : {s.LostOrders / (double)s.Runs:F0} 件/回");
 
             foreach (var kv in s.Endings)
                 TestContext.WriteLine($"  終了 {kv.Key,-13}: {kv.Value * 100.0 / s.Runs:F1}%");
@@ -172,7 +182,80 @@ namespace Concafe.Tests
 
             Assert.Greater(s.Graduations, 0, "卒業が一度も起きない");
             Assert.Greater(s.Scandals, 0, "炎上が一度も起きない");
-            Assert.Greater(s.RanAways + s.Defections, 0, "離脱が一度も起きない");
+            Assert.Greater(s.RanAways, 0, "飛ぶが一度も起きない");
+            Assert.Greater(s.Defections, 0,
+                "転生が一度も起きない。「育てた者は引き抜かれる」が成立していない");
+
+            // 飛ぶほうが多いこと。転生が主になると「育つ前の者は黙って消える」が消える。
+            Assert.Greater(s.RanAways, s.Defections,
+                "転生が飛ぶより多い。departure.defectThreshold が低すぎる");
+        }
+
+        [Test]
+        public void 離脱時の市場価値の分布を測る()
+        {
+            // departure.defectThreshold（U-15）をこの分布から決める。
+            // 閾値が分布の端に寄っていると、飛ぶ／転生のどちらかが死ぬ。
+            var s = Sweep(40, new AutoPilot.Policy { DaysPerCast = 4 });
+
+            var v = new List<long>();
+            foreach (double d in s.DepartValues) v.Add((long)System.Math.Round(d));
+            Assert.IsNotEmpty(v, "疲労離脱が一度も起きない");
+
+            double threshold = balance.Departure.DefectThreshold;
+            int above = 0;
+            foreach (double d in s.DepartValues) if (d >= threshold) above++;
+
+            TestContext.WriteLine(
+                $"疲労離脱 {v.Count} 件の市場価値: P10 {Percentile(v, 0.1)} / " +
+                $"中央 {Percentile(v, 0.5)} / P75 {Percentile(v, 0.75)} / " +
+                $"P90 {Percentile(v, 0.9)} / 最大 {Percentile(v, 1.0)}");
+            TestContext.WriteLine(
+                $"閾値 {threshold} 以上（＝転生）: {above * 100.0 / v.Count:F1}%");
+
+            // 閾値が中央値と最大値の間にあること。中央値を下回ると転生が主流になり、
+            // 最大値に近いと転生が起きなくなる（段階 5 で 55 がこれだった）。
+            Assert.Greater(threshold, Percentile(v, 0.5),
+                "閾値が中央値以下。ほとんどの離脱が転生になる");
+            Assert.Less(threshold, Percentile(v, 0.95),
+                "閾値が分布の端。転生がほぼ起きない");
+        }
+
+        [Test]
+        public void 設備投資で枠が伸び店長_AP_が足りなくなる()
+        {
+            // U-13 を入れた理由そのもの。枠 3 人のままだと AP が余り、
+            // 「誰に信頼を積むか」という終盤の判断が発生しない（設計書 14.6.1）。
+            var without = Sweep(30, new AutoPilot.Policy { DaysPerCast = 4, Invest = false });
+            var with = Sweep(30, new AutoPilot.Policy { DaysPerCast = 4, Invest = true });
+
+            Report("設備投資なし", without);
+            Report("設備投資あり", with);
+
+            Assert.AreEqual(balance.Shop.InitialCastSlots, Percentile2(without.Slots, 0.5),
+                "投資しない方針なのに枠が増えている");
+            Assert.Greater(Percentile2(with.Slots, 0.5), balance.Shop.InitialCastSlots * 2,
+                "投資しても枠が伸びていない");
+
+            Assert.Greater(with.Neglected, without.Neglected * 3,
+                "枠を広げても AP が逼迫しない。終盤の判断が生まれていない");
+            Assert.Greater(with.Graduations, without.Graduations,
+                "枠を広げても卒業が増えない。世代交代が回っていない");
+        }
+
+        [Test]
+        public void 設備投資は割に合うが劇的ではない()
+        {
+            var without = Sweep(30, new AutoPilot.Policy { DaysPerCast = 4, Invest = false });
+            var with = Sweep(30, new AutoPilot.Policy { DaysPerCast = 4, Invest = true });
+
+            long a = Percentile(without.FinalCash, 0.5);
+            long b = Percentile(with.FinalCash, 0.5);
+            TestContext.WriteLine($"最終資金の中央値: 投資なし {a:N0} → 投資あり {b:N0}");
+
+            Assert.Greater(b, a, "設備投資が損になっている");
+            Assert.Less(b, a * 4,
+                "設備投資が強すぎる。家賃の上乗せか価格が軽い（設計書 14.1）");
         }
 
         [Test]

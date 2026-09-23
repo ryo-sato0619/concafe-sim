@@ -164,6 +164,9 @@ namespace Concafe.Simulation.Rules
             gifts.TrainingBooks = DrawCount(a.TrainingBooksPerWeek, rng);
             state.TrainingBooks += gifts.TrainingBooks;
 
+            // 差し入れは冷蔵庫の上限を見ない。発注ではなく届きものなので、
+            // 冷蔵庫が一杯だから受け取れない、という形にはしない。
+            // 数が少ないのでバランスへの影響も無い。
             gifts.PremiumBottles = DrawCount(a.PremiumBottlesPerWeek, rng);
             if (gifts.PremiumBottles > 0)
             {
@@ -314,6 +317,7 @@ namespace Concafe.Simulation.Rules
             var balance = state.Balance;
             var stock = state.Shop.Stock;
             var rng = state.Rng.Orders;
+            long drinkBonus = state.Shop.GuestDrinkBonusYen(balance);
 
             for (int day = 0; day < Shift.DaysPerWeek; day++)
             {
@@ -347,7 +351,8 @@ namespace Concafe.Simulation.Rules
                 foreach (var a in assignments)
                 {
                     var service = OrderRules.Serve(
-                        a.Cast, a.Total, a.Slot.Hours, balance, stock, rng, state.Alumni);
+                        a.Cast, a.Total, a.Slot.Hours, balance, stock, rng,
+                        state.Alumni, drinkBonus);
 
                     dayResult.Visitors += a.Total;
                     dayResult.GuestHours += service.GuestHours;
