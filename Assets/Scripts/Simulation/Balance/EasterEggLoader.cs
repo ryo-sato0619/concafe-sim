@@ -128,8 +128,12 @@ namespace Concafe.Simulation.Balance
                 }
                 egg.Match = matches;
 
+                // 空き枠を有効にしただけで名前を入れ忘れた場合をここで捕まえる。
+                // 黙って通すと「有効にしたのに一生発動しない」状態になり、
+                // 実装を疑い始めることになる。
                 if (egg.Enabled && matches.Count == 0)
-                    problems.Add($"{path} は enabled だが match が空。絶対に発動しない");
+                    problems.Add($"{path} は enabled だが match が空。絶対に発動しない。" +
+                                 "有効にするなら match に源氏名を入れること");
 
                 // 有効なエッグ同士で候補が衝突すると、どちらが出るかが並び順に依存する。
                 if (egg.Enabled)

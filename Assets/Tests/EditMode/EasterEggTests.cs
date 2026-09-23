@@ -56,6 +56,87 @@ namespace Concafe.Tests
                 Assert.IsNull(eggs.Find(e.DisplayName));
         }
 
+        // ---- 空き枠のオンオフ ---------------------------------------------
+        //
+        // 中身は保留のまま、JSON の enabled だけで出し入れできること。
+        // コードの変更もビルドも要らない状態を保つ。
+
+        /// <summary>空き枠 1 を有効にし、源氏名「テスト子」で発動するようにする。</summary>
+        static string EnableSlotOne() => TestEggs.RawJson().Replace(
+            @"""id"": ""slot_stat_bonus"",
+      ""enabled"": false,
+      ""displayName"": ""（空き枠1・初期値特化）"",
+      ""match"": [],",
+            @"""id"": ""slot_stat_bonus"",
+      ""enabled"": true,
+      ""displayName"": ""（空き枠1・初期値特化）"",
+      ""match"": [""テスト子""],");
+
+        [Test]
+        public void 空き枠は_JSON_の_enabled_だけで出せる()
+        {
+            var opened = EasterEggLoader.Load(EnableSlotOne(), balance.Fatigue.TierCount);
+
+            Assert.IsNull(eggs.Find("テスト子"), "止めてある側で発動している");
+            Assert.AreEqual("slot_stat_bonus", opened.Find("テスト子")?.Id,
+                "enabled を true にしても発動しない");
+        }
+
+        [Test]
+        public void 出した空き枠は採用で実際に効く()
+        {
+            var opened = EasterEggLoader.Load(EnableSlotOne(), balance.Fatigue.TierCount);
+
+            var applicant = CastFactory.GenerateApplicant(new GameRandom(5), balance, 0, 1);
+            double plainTalk = CastFactory
+                .Hire(applicant, "ふつう", balance, opened, 0).Current.Talk;
+
+            var applied = CastFactory.Hire(applicant, "テスト子", balance, opened, 0);
+
+            Assert.AreEqual("slot_stat_bonus", applied.EasterEggId);
+            Assert.Greater(applied.Current.Talk, plainTalk,
+                "空き枠 1 の statBonus が効いていない");
+        }
+
+        [Test]
+        public void 止め直すと以後は発動しないが在籍中のキャストは変わらない()
+        {
+            // 不変条件 23・24: 採用済みのキャストは源氏名で引き直さず、
+            // 効果は採用の瞬間に焼き込まれている。後から枠を止めても
+            // 進行中のセーブでそのキャストが別人にならない。
+            var opened = EasterEggLoader.Load(EnableSlotOne(), balance.Fatigue.TierCount);
+
+            var applicant = CastFactory.GenerateApplicant(new GameRandom(5), balance, 0, 1);
+            var hired = CastFactory.Hire(applicant, "テスト子", balance, opened, 0);
+            double talkAtHire = hired.Current.Talk;
+
+            // ここで空き枠を止め直す（= 元の eggs に戻す）。
+            Assert.IsNull(eggs.Find("テスト子"), "止めたのにまだ名前が引ける");
+            Assert.AreEqual("slot_stat_bonus", hired.EasterEggId,
+                "在籍中のキャストのエッグが取り上げられている");
+            Assert.AreEqual(talkAtHire, hired.Current.Talk,
+                "止め直したらパラメータが変わった");
+        }
+
+        [Test]
+        public void 空き枠のひな形はコードを触らずに動く形で置いてある()
+        {
+            // 「中身は保留」でも、出したい日に JSON だけで出せること。
+            // ひな形が空だと、結局コードから書き起こす羽目になる。
+            foreach (var e in eggs.Eggs.Where(x => !x.Enabled))
+            {
+                bool hasSomething =
+                    e.HasFixedStaminaTier || e.HasFixedScandalResist
+                    || !string.IsNullOrEmpty(e.EventId)
+                    || Stats.AllKinds.Any(k => e.StatBonus.For(k) != 0)
+                    || Stats.AllKinds.Any(k => e.StatMultiplier.For(k) != 1.0)
+                    || Stats.AllKinds.Any(k => e.CapMultiplier.For(k) != 1.0);
+
+                Assert.IsTrue(hasSomething,
+                    $"{e.Id} のひな形が空。enabled を true にしても何も起きない");
+            }
+        }
+
         [Test]
         public void ニシキが表記ゆれで引ける()
         {
