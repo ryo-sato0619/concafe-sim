@@ -352,9 +352,41 @@ marketValue <  45 → 飛ぶ（バックレ）。予兆なし。他キャスト�
 **小数は `R` 書式で書く。** 丸めるとセーブ・ロードしただけでパラメータが動き、
 480週で誤差が積もって「セーブしたかどうかで結果が変わる」ことになる。
 
-### 1シーンのみ
+### 1シーンのみ、UIは実行時にコードで組む
 
 `Assets/Scenes/Main.unity` だけ。画面遷移は UI の差し替えで行う。
+
+**シーンにはカメラ・EventSystem・Canvas・`GameController` しか置かない。**
+widget はすべて実行時に `Game/Ui` の部品から作る。シフト表がキャスト数×7日の
+可変グリッド（3人〜12人）である以上、静的なシーンには置けない。
+結果としてシーンは400行弱・GameObject3つに収まり、差分としてレビューできる。
+
+**判断に要る計算は Simulation 層に置く。** 給料・疲労・来客の見積りを
+MonoBehaviour に書くと、シフトの良し悪しをEditModeテストで確かめられなくなる。
+
+| 置き場所 | 持つもの |
+|---|---|
+| `Rules/ShiftPlanner`（純C#） | 枠の検査、プリセット、見積り、警告の収集 |
+| `Rules/WeekBriefing`（純C#） | 週頭に見せる一式（予報・資金・AP・在庫・解禁段階） |
+| `Game/WeekStartScreen` | 描くのと、ボタンを `ManagerActions` に渡すだけ |
+
+発注一覧を `WeekBriefing` が組むのは、**ボトルの解禁判定（不変条件5）が
+UI側に複製されるのを防ぐため。** 破ると壊れる規則の出口は1つにする。
+
+### クローン直後にやること
+
+```bash
+powershell -File tools/Setup.ps1      # TMPの必須リソース導入 + シーン生成
+```
+
+**TMPの必須リソースが無いと `TMP Settings` が存在せず、実行時にフォントを
+作ろうとした時点で NullReferenceException になる**（画面が1文字も出ない）。
+`ProjectSetup.SetUpBatch` が入れる。batchmodeで **`-quit` を付けないこと** —
+取り込みは非同期で、付けると終わる前にUnityが落ちる。
+
+**日本語フォントはOSのものを実行時に作っている（U-22 未決）。**
+開発機では動くが再配布できず、WebGLではOSフォントを使えない。
+配布前にSIL OFL等のフォントを `Resources/Fonts` に置く必要がある。
 
 ## テスト
 

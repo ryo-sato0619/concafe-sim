@@ -50,6 +50,28 @@ namespace Concafe.Simulation.Rules
         }
 
         /// <summary>
+        /// バックを含まない週給。欠勤も見ない。
+        ///
+        /// 週頭にシフトを組む時点で出せるのはここまでである。バックは
+        /// 何が売れるか次第、欠勤は専用イベント次第で、どちらも週を回すまで
+        /// 決まらない。**見積りとして画面に出すのはこの額**（設計書 8）。
+        /// </summary>
+        public static long WeeklyBaseYen(
+            Cast cast, Shift shift, BalanceData balance, int currentWeek)
+        {
+            double paidHours = 0;
+            for (int d = 0; d < Shift.DaysPerWeek; d++)
+            {
+                var slot = shift.Get(cast.Id, d);
+                if (slot.IsWorking)
+                    paidHours += balance.Business.PaidHours(slot.StartHour, slot.EndHour);
+            }
+
+            return (long)Math.Round(HourlyYen(cast, balance, currentWeek) * paidHours,
+                                    MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>
         /// バック。チェキ・キャストドリンク・ボトルの売上にだけ掛かる。
         /// チャージと客のドリンクは店の売上で、対象外。
         /// </summary>
